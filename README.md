@@ -2,7 +2,7 @@
   The function in _arena-survey-analysis.R_ is used to compute statistical results for area-based quantitative variables in Open Foris Arena.
   It also computes area estimates for given combination of dimensions. 
   The statistics contain means, totals, and associated standard error, variance, and confidence intervals.  
-  The result will be written into several CSV files.
+  The results will be written into several CSV files.
   
   This function can be called in Arena data processing chain, after running 'persist-results.R'
   or through a separate UI in Arena (to be implemented later).
