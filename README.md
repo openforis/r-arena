@@ -9,7 +9,6 @@
    
   The script creates first a list of data frames for statistical analysis called 'result_cat' 
   This object contains "per hectare" data at the base unit level for all categorical, taxonomic and boolean attributes across area-based variables, grouped by entities.   
-  Note: reported result entities' names we also get as follows: names(result_cat)
   
   Required R packages (with dependencies): dplyr, stringr, srvyr, survey, rlang
   
