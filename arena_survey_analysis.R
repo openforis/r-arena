@@ -4,7 +4,7 @@
 arenaAnalytics <- function( arena.analyze ) {
   
   # ** arguments:
-  # arena.analyze   <- list(entity = "tree", dimensions = c("cluster_stratum", "cluster_province", "plot_fra", "plot_landuse"), filter = "plot_landuse == '1'", categories = categories)
+  # arena.analyze   <- list(entity = "tree", dimensions = c("cluster_stratum", "cluster_province", "plot_fra", "plot_landuse"), filter = "plot_landuse == '1'")
   # ** run as follows:
   # arena_process_response <- arenaAnalytics( arena.analyze )
   # print( arena_process_response )
