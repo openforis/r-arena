@@ -10,6 +10,6 @@
   The script creates first a list of data frames for statistical analysis called 'result_cat' 
   This object contains "per hectare" data at the base unit level for all categorical, taxonomic and boolean attributes across area-based variables, grouped by entities.   
   
-  Required R packages (with dependencies): tidyverse, srvyr, survey
+  Required R packages (with dependencies): dplyr, rlang, stringr, tidyr, srvyr, survey
   
   Created by:   Lauri Vesa (FAO), Javier Garcia Perez (FAO), Stefano Ricci (FAO)
