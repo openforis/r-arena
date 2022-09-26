@@ -935,6 +935,11 @@ arenaAnalytics <- function(  ) {
   for (i in 1:length(result_entities)) {
     outfile7              <- paste0( out_path, result_entities[[i]], "_base_unit_results.csv")
     base_unit.results_out <- base_unit.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
+    
+    base_unit.results_out <- df_base_unit %>% select(base_uuid, all_of(arena.chainSummary$baseUnitEntityKeys)) %>%
+      dplyr::left_join( base_unit.results_out, by = base_uuid) %>%
+      select(-base_uuid)
+    
     tryCatch({if (exists('user_file_path')) write.csv(base_unit.results_out, outfile7, row.names = F)},
              warning = function(w) { cat("No output - base unit results") },
              error   = function(e) { cat("No output - base unit results")
