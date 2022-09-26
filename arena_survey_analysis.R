@@ -34,8 +34,6 @@ arenaAnalytics <- function(  ) {
             error = function(e){ library('tidyr')
             })
   
-  processMessage = ""
-  
   # define a folder for output files
   if (!exists('user_file_path')) user_file_path <- './user_output/'
   # create a folder for files to be exported
@@ -462,12 +460,14 @@ arenaAnalytics <- function(  ) {
   for (rep_loop in (1:arena.reportingLoops)) {
     if (arena.analyze$reportingMethod == '2') {
       arena.analyze$dimensions <- arena.analyze$dimensions_input[rep_loop]
-      out_path                 <- paste0("Dimensions/", arena.analyze$dimensions, "/")
+      out_path                 <- paste0("dimensions/", arena.analyze$dimensions, "/")
       if (dir.exists( paste0( user_file_path, arena.analyze$dimensions ))) unlink(paste0(user_file_path, arena.analyze$dimensions), recursive = TRUE)
       dir.create( paste0( user_file_path, arena.analyze$dimensions ), showWarnings = FALSE )
     } else {
-      out_path <- "Dimensions/"
+      out_path <- "dimensions/"
+      dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
     }
+    
     # get labels to the categorical result variables, [1]: input attribute, [2]: result attribute 
     result_labels           <- list() 
     result_names_category_1 <- intersect( arena.analyze$dimensions, names(get(arena.analyze$entity))) # cat. attributes in input data 
@@ -614,6 +614,8 @@ arenaAnalytics <- function(  ) {
       cat("Error in filter clause - Filter not applied!")
       return("Error in filter clause - Filter not applied.")}
     )
+    
+    if (is.null( processMessage )) processMessage = ""
     
     dimension_names <- unique( c(cat_names_uuid, arena.analyze$dimensions_baseunit))
     if (arena.stratification)      dimension_names <- unique( c(dimension_names, arena.strat_attribute))
@@ -920,7 +922,7 @@ arenaAnalytics <- function(  ) {
     }
   }
 
-  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') & processMessage == "") { 
+  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
     if ( Sys.info()['sysname']=="Windows" ) processMessage = " Result files in /Documents/arena/SURVEYNAME/user_output/"
   }
   
