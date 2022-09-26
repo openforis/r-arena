@@ -92,7 +92,7 @@ arenaAnalytics <- function(  ) {
     return( "Arena Analytics: No entity to report" )
   } 
   
-  
+
   # Initial processing with JSON data. 
   # a) no base unit -> no sampling design 
   if (arena.chainSummary$baseUnit == "")                       arena.chainSummary$samplingDesign              <- FALSE
@@ -456,17 +456,18 @@ arenaAnalytics <- function(  ) {
   if (length(f)) file.remove(f)
   rm(f)
   
+  out_path  <- "dimensions/"
+  if (dir.exists( paste0( user_file_path, out_path ))) unlink(paste0(user_file_path, out_path), recursive = TRUE)
+  dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
+  
   
   for (rep_loop in (1:arena.reportingLoops)) {
     if (arena.analyze$reportingMethod == '2') {
       arena.analyze$dimensions <- arena.analyze$dimensions_input[rep_loop]
       out_path                 <- paste0("dimensions/", arena.analyze$dimensions, "/")
       if (dir.exists( paste0( user_file_path, arena.analyze$dimensions ))) unlink(paste0(user_file_path, arena.analyze$dimensions), recursive = TRUE)
-      dir.create( paste0( user_file_path, arena.analyze$dimensions ), showWarnings = FALSE )
-    } else {
-      out_path <- "dimensions/"
-      dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
-    }
+      dir.create( paste0( user_file_path, "dimensions/", arena.analyze$dimensions ), showWarnings = FALSE )
+    } 
     
     # get labels to the categorical result variables, [1]: input attribute, [2]: result attribute 
     result_labels           <- list() 
