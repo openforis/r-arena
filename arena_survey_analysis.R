@@ -295,6 +295,7 @@ arenaAnalytics <- function(  ) {
     result_cat_attributes <- list()
     result_cat            <- list()
     base_unit.results     <- list()
+    cluster.results       <- list()
     
     # ADD area estimates based on exp_factor
     
@@ -385,8 +386,8 @@ arenaAnalytics <- function(  ) {
           dplyr::right_join(df_base_unit %>% select(base_uuid, exp_factor_), by= base_uuid) %>% # join expansion factor
           group_by(  across( result_cat_attributes[[i]] ))                                  %>%
           dplyr::summarize( across(.cols= all_of(resultVariables), 
-                                   list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
-                                   .names = "{.col}.{.fn}"), 
+                            list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
+                            .names = "{.col}.{.fn}"), 
                             entity_count_ = n() ) %>%
           data.frame()
         
@@ -394,8 +395,8 @@ arenaAnalytics <- function(  ) {
         result_cat[[i]] <- df_entitydata                   %>%
           group_by(  across( result_cat_attributes[[i]] )) %>%
           dplyr::summarize( across(.cols= all_of(resultVariables), 
-                                   list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
-                                   .names = "{.col}.{.fn}"), 
+                            list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
+                            .names = "{.col}.{.fn}"), 
                             entity_count_ = n() )          %>%
           data.frame()
       }
@@ -411,21 +412,41 @@ arenaAnalytics <- function(  ) {
       
       rm( temp_list_variables )
       
-      # # PART 2. compute sum of per hectare results at the base unit level for each result variable
+      ## PART 2. compute sum of per hectare results at the base unit level for each result variable
       base_unit.results[[i]] <- df_entitydata %>%
         # Add expansion factor for all result entities
-        dplyr::right_join(df_base_unit %>% 
-                            select(base_uuid, exp_factor_), by = base_uuid) %>%
+        dplyr::right_join((df_base_unit %>% select(base_uuid, weight, exp_factor_)), by = base_uuid) %>%
         group_by_at( base_uuid ) %>%
         dplyr::summarize(across(.cols= all_of(resultVariables),
                                 list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),
                                 .names = "{.col}.{.fn}"),
                          item_count = n() )
       
-      
       # join results with the clone of base unit
       df_base_unit <- df_base_unit %>%
         dplyr::left_join( base_unit.results[[i]], by = base_uuid)
+      
+      
+      ## PART 3. compute sum of per hectare results at the cluster level for each result variable
+      
+      if (cluster_uuid !="") {
+        
+        cluster.weights <- df_base_unit %>%
+          filter(weight>0)              %>%
+          select(cluster_uuid, weight)  %>%
+          group_by_at( cluster_uuid )   %>%
+          dplyr::summarize( sumweight = sum(weight), n_baseunits = n() )
+        
+        cluster.results[[i]] <- df_entitydata %>%
+          # Add expansion factor for all result entities
+          dplyr::left_join(cluster.weights, by = cluster_uuid) %>%
+          dplyr::right_join((df_base_unit %>% select(base_uuid, weight, exp_factor_)), by = base_uuid) %>%
+          group_by_at( cluster_uuid )                                                          %>%
+          dplyr::summarize(across(.cols= all_of(resultVariables),
+                                  list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE)/max(sumweight)),
+                                  .names = "{.col}.{.fn}"),
+                           n_baseunits = max(n_baseunits), sum_weight = max(sumweight) )
+      }      
       
       rm(resultVariables)
     }
@@ -531,9 +552,9 @@ arenaAnalytics <- function(  ) {
     
     # get numeric variables
     cat_names_num <- result_cat[[ arena.analyze$entity ]] %>%
-      data.frame()               %>%
-      select_if(is.numeric)      %>%
-      select(-weight, -exp_factor_, -entity_count_)  %>%
+      data.frame()                                        %>%
+      select_if(is.numeric)                               %>%
+      select(-weight, -exp_factor_, -entity_count_)       %>%
       names() 
     
     
@@ -542,11 +563,11 @@ arenaAnalytics <- function(  ) {
     cluster_uuid  <- ifelse( arena.chainSummary$clusteringEntity != "", paste0(arena.chainSummary$clusteringEntity, "_uuid"), "")
     
     if ( cluster_uuid != "" & arena.chainSummary$clusteringVariances ) {
-      cluster_statistics  <- result_cat[[ arena.analyze$entity ]]   %>%
-        data.frame()                                    %>%
-        filter(weight > 0)                              %>%
-        distinct(!!! syms(base_uuid), .keep_all = TRUE) %>%
-        group_by_at( cluster_uuid )                     %>%
+      cluster_statistics  <- result_cat[[ arena.analyze$entity ]] %>%
+        data.frame()                                              %>%
+        filter(weight > 0)                                        %>%
+        distinct(!!! syms(base_uuid), .keep_all = TRUE)           %>%
+        group_by_at( cluster_uuid )                               %>%
         dplyr::summarize( bu_count_ = n(), bu_sum_ = sum(weight), exp_factor_sum_ = sum(exp_factor_) )
       
       ids_2_survey       <- NULL
@@ -570,10 +591,10 @@ arenaAnalytics <- function(  ) {
         if ('area' %in% names(arena.postcategory_table)) {
           arena.postcategory_table$area <- is.numeric(arena.postcategory_table$area)
           arena.postcategory_table$area[ is.na(arena.postcategory_table$area) ] <- 0
-          ps.weights                    <- arena.postcategory_table %>% 
+          ps.weights                    <- arena.postcategory_table        %>% 
             select(postStratificationAttribute = code, Freq = area) 
         } else {
-          ps.weights <- df_base_unit                                          %>%
+          ps.weights <- df_base_unit                                       %>%
             group_by_at( arena.chainSummary$postStratificationAttribute )  %>%
             dplyr::summarize( Freq = sum(exp_factor_))                     %>%         
             data.frame()
@@ -623,13 +644,13 @@ arenaAnalytics <- function(  ) {
     if (arena.post_stratification) dimension_names <- unique( c(dimension_names, arena.chainSummary$postStratificationAttribute ))
     
     
-    df_analysis_area <- df_analysis_combined                                             %>%
-      filter( weight > 0 )                                                               %>%
-      group_by(  across( dimension_names )) %>%
+    df_analysis_area <- df_analysis_combined                                    %>%
+      filter( weight > 0 )                                                      %>%
+      group_by(  across( dimension_names ))                                     %>%
       dplyr::summarize( across(.cols= all_of(cat_names_num), 
                                list(Total = ~sum(.x, na.rm = TRUE)),  
-                               .names = "{.col}") )                                      %>%
-      ungroup()                                                                          %>%
+                               .names = "{.col}") )                             %>%
+      ungroup()                                                                 %>%
       left_join(df_analysis_weights, by = base_uuid)
     
     
@@ -638,7 +659,7 @@ arenaAnalytics <- function(  ) {
       group_by(  across( unique( c(cat_names_uuid, arena.analyze$dimensions)))) %>%
       dplyr::summarize( across(.cols= all_of(cat_names_num), 
                                list(Total = ~sum(.x, na.rm = TRUE)),  
-                               .names = "{.col}") )                                    %>%
+                               .names = "{.col}") )                             %>%
       ungroup()                                                                 %>%
       left_join(df_analysis_weights, by = base_uuid)
     
@@ -779,16 +800,17 @@ arenaAnalytics <- function(  ) {
     
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select_at(base_uuid) %>% unique() )
     # drop out area estimates from this table
-    out_global_total <- out_global_total %>% select(-starts_with("area")) 
+    out_global_total <- out_global_total %>% 
+      select(-starts_with("area")) 
     
     if (arena.stratification | arena.post_stratification) {
       
       # SRS: ALL DATA (totals) 
       jdesign       <- update( design_srvyr_SRS_total, whole_area_ = 1 )
-      out_SRS_total <- jdesign  %>%
-        group_by( whole_area_ ) %>%         
+      out_SRS_total <- jdesign                                      %>%
+        group_by( whole_area_ )                                     %>%         
         summarize_at( vars( ends_with(".Total") ),      
-                      funs( survey_total(., vartype = c("var") ))) %>%  
+                      funs( survey_total(., vartype = c("var") )))  %>%  
         as.data.frame(.) 
       
       var_global_total <- out_global_total %>% select(ends_with("_var")) 
@@ -927,8 +949,8 @@ arenaAnalytics <- function(  ) {
     if ( Sys.info()['sysname']=="Windows" ) processMessage = " Result files in /Documents/arena/SURVEYNAME/user_output/"
   }
   
-  # get results by base units out
-  out_path <- paste0(user_file_path, "base unit results", "/")
+  # get results by sampling units out
+  out_path <- paste0(user_file_path, "sampling unit results", "/")
   # create a folder for files to be exported
   if (!dir.exists( out_path )) dir.create( out_path, showWarnings = FALSE )
   
@@ -936,7 +958,12 @@ arenaAnalytics <- function(  ) {
     outfile7              <- paste0( out_path, result_entities[[i]], "_base_unit_results.csv")
     base_unit.results_out <- base_unit.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
     
-    base_unit.results_out <- df_base_unit %>% select(base_uuid, all_of(arena.chainSummary$baseUnitEntityKeys)) %>%
+    dimension_names <- arena.chainSummary$baseUnitEntityKeys
+    if (arena.stratification)      dimension_names <- unique( c(dimension_names, arena.strat_attribute))
+    if (arena.post_stratification) dimension_names <- unique( c(dimension_names, arena.chainSummary$postStratificationAttribute ))
+    
+    
+    base_unit.results_out <- df_base_unit %>% select(base_uuid, all_of( dimension_names ), weight) %>%
       dplyr::left_join( base_unit.results_out, by = base_uuid) %>%
       select(-base_uuid)
     
@@ -944,6 +971,22 @@ arenaAnalytics <- function(  ) {
              warning = function(w) { cat("No output - base unit results") },
              error   = function(e) { cat("No output - base unit results")
              })
+    
+    if (cluster_uuid !="") {
+        outfile8            <- paste0( out_path, result_entities[[i]], "_cluster_results.csv")
+        cluster.results_out <- cluster.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
+        cluster.results_out <- get( arena.chainSummary$clusteringEntity ) %>% select(cluster_uuid, all_of( arena.chainSummary$clusteringEntityKeys )) %>%
+          dplyr::left_join( cluster.results_out, by = cluster_uuid) %>%
+          select(-cluster_uuid)
+        
+        cluster.results_out[is.na(cluster.results_out)] <- 0
+        
+        tryCatch({if (exists('user_file_path')) write.csv(cluster.results_out, outfile8, row.names = F)},
+                 warning = function(w) { cat("No output - cluster results") },
+                 error   = function(e) { cat("No output - cluster results")
+                 })
+    }
+    
   }
   
   processMessage = paste0("Arena Analytics: Process completed. ", processMessage )
