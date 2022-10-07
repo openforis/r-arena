@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  20.9.2022
+  # Last update:  7.10.2022
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -112,6 +112,12 @@ arenaAnalytics <- function(  ) {
     
     # get base unit data into a data frame
     df_base_unit                  <- get( arena.chainSummary$baseUnit )
+    
+    # fix cases where field '_label' is not character type
+    df_base_unit <- df_base_unit %>%
+      mutate(across(ends_with("_label"),
+                    ~ as.character(.)))
+    
     # take a copy of weight. Non-response bias correction may change weights. 
     df_base_unit$weight_original_ <- df_base_unit$weight 
     # Key attribute names: base unit and clustering attributes
@@ -128,6 +134,9 @@ arenaAnalytics <- function(  ) {
       aoi.level_count          <- length( aoi.attributes ) 
       # get items from the lowest level with area
       aoi_df                   <- arena.chainSummary$reportingCategory$items        # levelIndex, level1code, label, level2code, ..., area
+      
+
+
       aoi_df$area[ is.na(aoi_df$area) ] <- 1
       
       
@@ -306,6 +315,12 @@ arenaAnalytics <- function(  ) {
       # drop out columns where all data is NA.  https://stackoverflow.com/questions/2643939/remove-columns-from-dataframe-where-all-values-are-na
       
       df_entitydata              <- get(result_entities[[i]])
+      
+      # fix cases where field '_label' is not character type
+      df_entitydata <- df_entitydata %>%
+        mutate(across(ends_with("_label"),
+                      ~ as.character(.)))
+      
       
       result_cat_attributes[[i]] <- ( df_entitydata  %>% select_if(~!all(is.na(.))) %>% select_if(~is.character(.)) )  %>%
         select(ends_with("_label") | ends_with("_scientific_name")) %>% 
