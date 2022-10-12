@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  7.10.2022
+  # Last update:  12.10.2022
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -112,11 +112,6 @@ arenaAnalytics <- function(  ) {
     
     # get base unit data into a data frame
     df_base_unit                  <- get( arena.chainSummary$baseUnit )
-    
-    # fix cases where field '_label' is not character type
-    df_base_unit <- df_base_unit %>%
-      mutate(across(ends_with("_label"),
-                    ~ as.character(.)))
     
     # take a copy of weight. Non-response bias correction may change weights. 
     df_base_unit$weight_original_ <- df_base_unit$weight 
@@ -316,12 +311,7 @@ arenaAnalytics <- function(  ) {
       
       df_entitydata              <- get(result_entities[[i]])
       
-      # fix cases where field '_label' is not character type
-      df_entitydata <- df_entitydata %>%
-        mutate(across(ends_with("_label"),
-                      ~ as.character(.)))
-      
-      
+
       result_cat_attributes[[i]] <- ( df_entitydata  %>% select_if(~!all(is.na(.))) %>% select_if(~is.character(.)) )  %>%
         select(ends_with("_label") | ends_with("_scientific_name")) %>% 
         names()
@@ -544,7 +534,7 @@ arenaAnalytics <- function(  ) {
         result_labels[[dataindex + i]]  <- 
           categories[ df_cat_report$categoryName[[i]] ] %>% 
           data.frame                                    %>%
-          select(2,3)
+          select(last_col(1:0))  # selects last two columns
         
         names(result_labels[[dataindex + i]]) <- c("code","label") 
       }
@@ -630,7 +620,7 @@ arenaAnalytics <- function(  ) {
     
     if ( arena.stratification )       arena.analyze$dimensions <- unique(c(arena.analyze$dimensions, arena.strat_attribute))
     if ( arena.post_stratification  ) {
-      arena.analyze$dimensions          <- unique( c(arena.analyze$dimensions, "postStratificationAttribute" ))
+      arena.analyze$dimensions          <- unique( c(arena.analyze$dimensions,          "postStratificationAttribute" ))
       arena.analyze$dimensions_baseunit <- unique( c(arena.analyze$dimensions_baseunit, "postStratificationAttribute" ))
     }
     
@@ -771,8 +761,20 @@ arenaAnalytics <- function(  ) {
     
     # NOTE: calculate the proportion or count in each group of a factor or character variable by leaving x empty in survey_mean() or survey_total()
     # https://cran.r-project.org/web/packages/srvyr/vignettes/srvyr-vs-survey.html
-    
-    
+
+    # ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
+    # # TEST these
+    # if (arena.stratification & !(arena.strat_attribute %in% arena.analyze$dimensions_input)) {
+    #   arena.analyze$dimensions          <- arena.analyze$dimensions          %>% select(-arena.strat_attribute)
+    #   arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit %>% select(-arena.strat_attribute)  
+    # }
+    # 
+    # if (arena.post_stratification & !(arena.chainSummary$postStratificationAttribute %in% arena.analyze$dimensions_input) ) {
+    #   arena.analyze$dimensions          <- arena.analyze$dimensions          %>% select(-arena.chainSummary$postStratificationAttribute, -postStratificationAttribute)
+    #   arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit %>% select(-arena.chainSummary$postStratificationAttribute, -postStratificationAttribute)  
+    # }
+    # ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
       group_by_at( arena.analyze$dimensions )  %>%        # here comes grouping variable(s) 
