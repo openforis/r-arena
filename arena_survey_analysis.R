@@ -952,19 +952,6 @@ arenaAnalytics <- function(  ) {
              })
   }
   
-  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path') ) { 
-    # zip all files
-    export_filename  <- paste0( user_file_path, 'arena_results.zip')
-    files2zip        <- dir( user_file_path, full.names = TRUE )
-    if ( length(files2zip)>0 ) {
-      zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
-      browseURL( export_filename )
-    }
-  }
-
-  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
-    if ( Sys.info()['sysname']=="Windows" ) processMessage = " Result files in /Documents/arena/SURVEYNAME/user_output/"
-  }
   
   # get results by sampling units out
   out_path <- paste0(user_file_path, "sampling unit results", "/")
@@ -1004,6 +991,20 @@ arenaAnalytics <- function(  ) {
                  })
     }
     
+  }
+  
+  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path') ) { 
+    # zip all files
+    export_filename  <- paste0( user_file_path, 'arena_results.zip')
+    files2zip        <- dir( user_file_path, full.names = TRUE )
+    if ( length(files2zip)>0 ) {
+      zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
+      browseURL( export_filename )
+    }
+  }
+  
+  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
+    if ( Sys.info()['sysname']=="Windows" ) processMessage = " Result files in /Documents/arena/SURVEYNAME/user_output/"
   }
   
   processMessage = paste0("Arena Analytics: Process completed. ", processMessage )
