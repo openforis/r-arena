@@ -696,7 +696,7 @@ arenaAnalytics <- function(  ) {
           ids       = !!ids_2_survey,
           strata    = !!stratum_2_survey,
           fpc       = NULL, 
-          weights   = weight,  
+          weights   = exp_factor_,  
           nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
           variables = c( arena.analyze$dimensions, ends_with('.Mean')) )
       
@@ -762,20 +762,18 @@ arenaAnalytics <- function(  ) {
     # NOTE: calculate the proportion or count in each group of a factor or character variable by leaving x empty in survey_mean() or survey_total()
     # https://cran.r-project.org/web/packages/srvyr/vignettes/srvyr-vs-survey.html
 
-    # drop out stratification attributes if not selected as dimensions into the result tables  
-    # # TEST
-    # if (arena.stratification & !(arena.strat_attribute %in% arena.analyze$dimensions_input)) {
-    #   arena.analyze$dimensions          <- arena.analyze$dimensions[! arena.analyze$dimensions                   %in% c(arena.strat_attribute)]
-    #   arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit[! arena.analyze$dimensions_baseunit %in% c(arena.strat_attribute)]
-    # }
-    # 
-    # if (arena.post_stratification & !(arena.chainSummary$postStratificationAttribute %in% arena.analyze$dimensions_input) ) {
-    #   arena.analyze$dimensions          <- arena.analyze$dimensions[! arena.analyze$dimensions                   %in% c(arena.chainSummary$postStratificationAttribute, 'postStratificationAttribute')] 
-    #   arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit[! arena.analyze$dimensions_baseunit %in% c(arena.chainSummary$postStratificationAttribute, 'postStratificationAttribute')]
-    # }
-    
-    # ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    # drop out stratification attributes from result tables if these are not selected as dimensions  
+    if (arena.stratification & !(arena.strat_attribute %in% arena.analyze$dimensions_input)) {
+      arena.analyze$dimensions          <- arena.analyze$dimensions[! arena.analyze$dimensions                   %in% c(arena.strat_attribute)]
+      arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit[! arena.analyze$dimensions_baseunit %in% c(arena.strat_attribute)]
+    }
 
+    if (arena.post_stratification & !(arena.chainSummary$postStratificationAttribute %in% arena.analyze$dimensions_input) ) {
+      arena.analyze$dimensions          <- arena.analyze$dimensions[! arena.analyze$dimensions                   %in% c(arena.chainSummary$postStratificationAttribute, 'postStratificationAttribute')]
+      arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit[! arena.analyze$dimensions_baseunit %in% c(arena.chainSummary$postStratificationAttribute, 'postStratificationAttribute')]
+    }
+    
+    
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
       group_by_at( arena.analyze$dimensions )  %>%        # here comes grouping variable(s) 
