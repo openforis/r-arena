@@ -700,6 +700,18 @@ arenaAnalytics <- function(  ) {
           nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
           variables = c( arena.analyze$dimensions, ends_with('.Mean')) )
       
+      if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+        design_srvyr_global_mean <- 
+          df_analysis_combined     %>%
+          srvyr::as_survey_design(
+            ids       = !!ids_2_survey,
+            strata    = !!stratum_2_survey,
+            fpc       = NULL, 
+            weights   = exp_factor_,  
+            nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
+            variables = c( arena.analyze$dimensions_baseunit, ends_with('.Mean')) )
+      }
+      
       design_srvyr_total <- 
         df_analysis_combined     %>%
         srvyr::as_survey_design(
@@ -737,6 +749,13 @@ arenaAnalytics <- function(  ) {
                                                   strata = ~postStratificationAttribute,
                                                   population = ps.weights,
                                                   partial = TRUE) #if TRUE, ignore population strata not present in the sample
+      
+      if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+        design_srvyr_global_mean <- survey::postStratify( design_srvyr_global_mean, 
+                                                          strata = ~postStratificationAttribute,
+                                                          population = ps.weights,
+                                                          partial = TRUE) #if TRUE, ignore population strata not present in the sample
+      }
       
       design_srvyr_total <- survey::postStratify( design_srvyr_total, 
                                                   strata = ~postStratificationAttribute,
@@ -813,12 +832,13 @@ arenaAnalytics <- function(  ) {
                     funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
       as.data.frame(.) 
     
-    out_global_mean <- design_srvyr_mean  %>%
-      summarize_at( vars(ends_with(".Mean") ),   
-                    funs( survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
-      as.data.frame(.) 
-    
-    
+    if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+      out_global_mean <- design_srvyr_global_mean  %>%
+        summarize_at( vars(ends_with(".Mean") ),   
+                      funs( survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
+        as.data.frame(.) 
+    }
+
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select_at(base_UUID_) %>% unique() )
     # drop out area estimates from this table
     out_global_total <- out_global_total %>% 
@@ -921,7 +941,7 @@ arenaAnalytics <- function(  ) {
   out_file[[5]] <- paste0(user_file_path, arena.analyze$entity, "_nonresponse_correction_by_stratum.csv")
   out_file[[6]] <- paste0(user_file_path, arena.analyze$entity, "_area_estimates.csv")
   out_file[[7]] <- paste0(user_file_path, arena.analyze$entity, "_out_global_mean.csv")
-  
+
     
   # rename columns
   #  out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "area_se",    "area_sd"))
@@ -942,6 +962,7 @@ arenaAnalytics <- function(  ) {
            warning = function(w) { cat("No output - out_global_mean") },
            error   = function(e) { cat("No output - out_global_mean")
            })
+  rm(out_global_mean)
   
   if (arena.stratification | arena.post_stratification) {
     tryCatch({if (exists('user_file_path') & exists("var_efficiency")) write.csv(var_efficiency, out_file[[4]], row.names = F)},
