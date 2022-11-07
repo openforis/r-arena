@@ -792,7 +792,7 @@ arenaAnalytics <- function(  ) {
     out_total <- design_srvyr_total           %>%
       group_by_at( arena.analyze$dimensions ) %>%    
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    funs( survey_total(., vartype = c("se", "var", "ci") )))         %>%  
+                    funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))  %>%  
       mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
     
@@ -810,8 +810,8 @@ arenaAnalytics <- function(  ) {
     out_global_total <- jdesign %>%
       group_by( whole_area_ )   %>%       
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    funs( survey_total(., vartype = c("se", "var", "ci") )))         %>%  
-      mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
+                    funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
+#      mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
     
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select_at(base_UUID_) %>% unique() )
