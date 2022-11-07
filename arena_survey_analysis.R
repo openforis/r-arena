@@ -811,8 +811,13 @@ arenaAnalytics <- function(  ) {
       group_by( whole_area_ )   %>%       
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
                     funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
-#      mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
+    
+    out_global_mean <- design_srvyr_mean  %>%
+      summarize_at( vars(ends_with(".Mean") ),   
+                    funs( survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
+      as.data.frame(.) 
+    
     
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select_at(base_UUID_) %>% unique() )
     # drop out area estimates from this table
@@ -915,7 +920,9 @@ arenaAnalytics <- function(  ) {
   out_file[[4]] <- paste0(user_file_path, arena.analyze$entity, "_relative_efficiency.csv")
   out_file[[5]] <- paste0(user_file_path, arena.analyze$entity, "_nonresponse_correction_by_stratum.csv")
   out_file[[6]] <- paste0(user_file_path, arena.analyze$entity, "_area_estimates.csv")
+  out_file[[7]] <- paste0(user_file_path, arena.analyze$entity, "_out_global_mean.csv")
   
+    
   # rename columns
   #  out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "area_se",    "area_sd"))
   out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "_ha.Total_se",  ".sd"))
@@ -929,6 +936,11 @@ arenaAnalytics <- function(  ) {
   tryCatch({if (exists('user_file_path') & exists("out_global_total")) write.csv(out_global_total, out_file[[3]], row.names = F)},
            warning = function(w) { cat("No output - out_global_total") },
            error   = function(e) { cat("No output - out_global_total")
+           })
+
+  tryCatch({if (exists('user_file_path') & exists("out_global_mean")) write.csv(out_global_mean, out_file[[7]], row.names = F)},
+           warning = function(w) { cat("No output - out_global_mean") },
+           error   = function(e) { cat("No output - out_global_mean")
            })
   
   if (arena.stratification | arena.post_stratification) {
