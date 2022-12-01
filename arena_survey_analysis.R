@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  12.10.2022
+  # Last update:  01.12.2022
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -139,6 +139,7 @@ arenaAnalytics <- function(  ) {
       if ( !arena.stratification ) {
         ifelse( sum(df_base_unit$weight) > 0, 
                 df_base_unit$exp_factor_ <- sum( aoi_df$area[aoi_df$levelIndex == aoi.level_count], na.rm = TRUE  ) / sum(df_base_unit$weight), 0)
+        df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
       } else {  
         # 2. stratified sampling, nonresponse bias correction
         if (arena.chainSummary$nonResponseBiasCorrection) {
@@ -248,6 +249,7 @@ arenaAnalytics <- function(  ) {
         
         # True expansion factor
         df_base_unit$exp_factor_ <- df_base_unit$exp_factor_ * df_base_unit$weight 
+        df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
         
         
       } # end of stratified sampling
@@ -700,6 +702,7 @@ arenaAnalytics <- function(  ) {
           nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
           variables = c( arena.analyze$dimensions, ends_with('.Mean')) )
       
+ 
       if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
         design_srvyr_global_mean <- 
           df_analysis_combined     %>%
