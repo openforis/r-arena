@@ -249,7 +249,7 @@ arenaAnalytics <- function(  ) {
         
         # True expansion factor
         df_base_unit$exp_factor_ <- df_base_unit$exp_factor_ * df_base_unit$weight 
-        df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
+        df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0.0
         
         
       } # end of stratified sampling
