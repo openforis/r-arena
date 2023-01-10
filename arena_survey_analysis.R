@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  01.12.2022
+  # Last update:  10.01.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -372,14 +372,14 @@ arenaAnalytics <- function(  ) {
       if (result_entities[[i]] != arena.chainSummary$baseUnit) {
         
         # get a list of base unit IDs that are not in entity data (i.e. treeless plots)
-        missing_ids     <- setdiff(unique(unlist(df_base_unit %>% filter(weight>0) %>% select(base_UUID_) )), unique(unlist( df_entitydata[base_UUID_] )))
+        missing_ids     <- setdiff(unique(unlist(df_base_unit %>% filter(weight>0) %>% select(all_of(base_UUID_)) )), unique(unlist( df_entitydata[base_UUID_] )))
         
         if (length(missing_ids) > 0) {
           # get list of attributes that exist in base unit data
           names_in_data   <- intersect(names(df_entitydata), names(df_base_unit)) 
           
           df_base_unit2   <- subset(df_base_unit,  eval(parse(text = base_UUID_)) %in% missing_ids)
-          result_cat[[i]] <- bind_rows(df_entitydata, df_base_unit2 %>% select(names_in_data) )
+          result_cat[[i]] <- bind_rows(df_entitydata, df_base_unit2 %>% select(all_of(names_in_data)) )
           result_cat[[i]] <- result_cat[[i]] %>% 
             mutate_if(is.numeric, ~tidyr::replace_na(., 0))
           rm(names_in_data); rm(df_base_unit2)
@@ -422,7 +422,7 @@ arenaAnalytics <- function(  ) {
       ## PART 2. compute sum of per hectare results at the base unit level for each result variable
       base_unit.results[[i]] <- df_entitydata %>%
         # Add expansion factor for all result entities
-        dplyr::right_join((df_base_unit %>% select(base_UUID_, weight, exp_factor_)), by = base_UUID_) %>%
+        dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
         group_by_at( base_UUID_ ) %>%
         dplyr::summarize(across(.cols= all_of(resultVariables),
                                 list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),
@@ -447,7 +447,7 @@ arenaAnalytics <- function(  ) {
         cluster.results[[i]] <- df_entitydata %>%
           # Add expansion factor for all result entities
           dplyr::left_join(cluster.weights, by = cluster_UUID_) %>%
-          dplyr::right_join((df_base_unit %>% select(base_UUID_, weight, exp_factor_)), by = base_UUID_) %>%
+          dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
           group_by_at( cluster_UUID_ )                                                          %>%
           dplyr::summarize(across(.cols= all_of(resultVariables),
                                   list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE)/max(sumweight)),
@@ -518,7 +518,7 @@ arenaAnalytics <- function(  ) {
         if ( species_column %in% names(df_cat_report))  df_cat_report[ label_column ] <- df_cat_report[ species_column ]
         
         result_labels[[i]]  <- df_cat_report %>% 
-          select(code = result_names_category_1[i], label = label_column ) %>%
+          select(code = result_names_category_1[i], label = all_of(label_column) ) %>%
           distinct() %>%
           arrange(.[1])
       }
@@ -653,7 +653,7 @@ arenaAnalytics <- function(  ) {
     
     df_analysis_area <- df_analysis_combined                                    %>%
       filter( weight > 0 )                                                      %>%
-      group_by(  across( dimension_names ))                                     %>%
+      group_by(  across(all_of(dimension_names )))                              %>%
       dplyr::summarize( across(.cols= all_of(cat_names_num), 
                                list(Total = ~sum(.x, na.rm = TRUE)),  
                                .names = "{.col}") )                             %>%
