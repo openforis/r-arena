@@ -390,7 +390,7 @@ arenaAnalytics <- function(  ) {
         rm(missing_ids)
         
         result_cat[[i]] <- result_cat[[i]]                                                  %>%
-          dplyr::right_join(df_base_unit %>% select(base_UUID_, exp_factor_), by= base_UUID_) %>% # join expansion factor
+          dplyr::right_join(df_base_unit %>% select(all_of(base_UUID_), exp_factor_), by= base_UUID_) %>% # join expansion factor
           group_by(  across( result_cat_attributes[[i]] ))                                  %>%
           dplyr::summarize( across(.cols= all_of(resultVariables), 
                             list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
@@ -626,7 +626,7 @@ arenaAnalytics <- function(  ) {
       arena.analyze$dimensions_baseunit <- unique( c(arena.analyze$dimensions_baseunit, "postStratificationAttribute" ))
     }
     
-    df_analysis_weights  <- result_cat[[arena.analyze$entity]] %>% distinct(!!! syms(base_UUID_), .keep_all = T) %>% select(base_UUID_, weight, exp_factor_)
+    df_analysis_weights  <- result_cat[[arena.analyze$entity]] %>% distinct(!!! syms(base_UUID_), .keep_all = T) %>% select(all_of(base_UUID_), weight, exp_factor_)
     
     df_analysis_combined <- result_cat[[arena.analyze$entity]]
     
@@ -1002,7 +1002,7 @@ arenaAnalytics <- function(  ) {
     if (arena.post_stratification) dimension_names <- unique( c(dimension_names, arena.chainSummary$postStratificationAttribute ))
     
     
-    base_unit.results_out <- df_base_unit %>% select(base_UUID_, all_of( dimension_names ), weight) %>%
+    base_unit.results_out <- df_base_unit %>% select(all_of(base_UUID_), all_of( dimension_names ), weight) %>%
       dplyr::left_join( base_unit.results_out, by = base_UUID_) %>%
       select(-base_UUID_)
     
