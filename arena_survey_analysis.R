@@ -164,7 +164,7 @@ arenaAnalytics <- function(  ) {
           arena.samplingdesign_table <- arena.samplingdesign_table %>%
             left_join( df_base_unit                    %>%
                          filter( weight > 0 )                    %>%
-                         group_by_at( arena.strat_attribute )    %>%
+                         group_by( across( arena.strat_attribute ))    %>%
                          dplyr::summarize( cluster_count = n( ), sum_weight= sum(weight) ), by = arena.strat_attribute) %>%
             mutate( cluster_count            = ifelse( is.na(cluster_count ), 0, cluster_count) )      %>%
             mutate( arena_cluster_correction = ifelse( cluster_count>0 & design_number_psu>0, design_number_psu/cluster_count, 1))
@@ -234,7 +234,7 @@ arenaAnalytics <- function(  ) {
         
         arena.expansion_factor <- df_base_unit %>%
           filter(weight>0)                     %>%
-          group_by_at( arena.strat_attribute ) %>%
+          group_by( across( arena.strat_attribute )) %>%
           dplyr::summarize( aoi_weight_ = sum( weight ), aoi_count_ =n()) 
         
         arena.expansion_factor <- arena.expansion_factor %>%
@@ -423,7 +423,7 @@ arenaAnalytics <- function(  ) {
       base_unit.results[[i]] <- df_entitydata %>%
         # Add expansion factor for all result entities
         dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
-        group_by_at( base_UUID_ ) %>%
+        group_by( across( base_UUID_ )) %>%
         dplyr::summarize(across(.cols= all_of(resultVariables),
                                 list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),
                                 .names = "{.col}.{.fn}"),
@@ -441,14 +441,14 @@ arenaAnalytics <- function(  ) {
         cluster.weights <- df_base_unit %>%
           filter(weight>0)              %>%
           select(cluster_UUID_, weight)  %>%
-          group_by_at( cluster_UUID_ )   %>%
+          group_by( across( cluster_UUID_ ))   %>%
           dplyr::summarize( sumweight = sum(weight), n_baseunits = n() )
         
         cluster.results[[i]] <- df_entitydata %>%
           # Add expansion factor for all result entities
           dplyr::left_join(cluster.weights, by = cluster_UUID_) %>%
           dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
-          group_by_at( cluster_UUID_ )                                                          %>%
+          group_by( across( cluster_UUID_ ))                                                          %>%
           dplyr::summarize(across(.cols= all_of(resultVariables),
                                   list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE)/max(sumweight)),
                                   .names = "{.col}.{.fn}"),
@@ -574,7 +574,7 @@ arenaAnalytics <- function(  ) {
         data.frame()                                              %>%
         filter(weight > 0)                                        %>%
         distinct(!!! syms(base_UUID_), .keep_all = TRUE)           %>%
-        group_by_at( cluster_UUID_ )                               %>%
+        group_by( across( cluster_UUID_ ))                         %>%
         dplyr::summarize( bu_count_ = n(), bu_sum_ = sum(weight), exp_factor_sum_ = sum(exp_factor_) )
       
       ids_2_survey       <- NULL
@@ -602,7 +602,7 @@ arenaAnalytics <- function(  ) {
             select(postStratificationAttribute = code, Freq = area) 
         } else {
           ps.weights <- df_base_unit                                       %>%
-            group_by_at( arena.chainSummary$postStratificationAttribute )  %>%
+            group_by( across( arena.chainSummary$postStratificationAttribute ))  %>%
             dplyr::summarize( Freq = sum(exp_factor_))                     %>%         
             data.frame()
           
@@ -798,7 +798,7 @@ arenaAnalytics <- function(  ) {
     
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
-      group_by_at( arena.analyze$dimensions )  %>%        # here comes grouping variable(s) 
+      group_by( across( arena.analyze$dimensions ))  %>%        # here comes grouping variable(s) 
       summarize_at( vars( ends_with(".Mean") ),     
                     funs( tally = sum(!is.na(.)), survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
       as.data.frame(.) 
@@ -812,7 +812,7 @@ arenaAnalytics <- function(  ) {
     
     # TOTAL
     out_total <- design_srvyr_total           %>%
-      group_by_at( arena.analyze$dimensions ) %>%    
+      group_by( across( arena.analyze$dimensions )) %>%    
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
                     funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))  %>%  
       mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
@@ -820,7 +820,7 @@ arenaAnalytics <- function(  ) {
     
     # AREA 
     out_area <- design_srvyr_area                      %>%
-      group_by_at( arena.analyze$dimensions_baseunit ) %>%    
+      group_by( across( arena.analyze$dimensions_baseunit )) %>%    
       summarize_at( vars(area=exp_factor_ ),      
                     funs( survey_total(.) ))           %>%  
       as.data.frame(.) 
@@ -842,7 +842,7 @@ arenaAnalytics <- function(  ) {
         as.data.frame(.) 
     }
 
-    out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select_at(base_UUID_) %>% unique() )
+    out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select(all_of(base_UUID_)) %>% unique() )
     # drop out area estimates from this table
     out_global_total <- out_global_total %>% 
       select(-starts_with("area")) 
