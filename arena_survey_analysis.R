@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  10.01.2023
+  # Last update:  14.01.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -314,14 +314,14 @@ arenaAnalytics <- function(  ) {
       df_entitydata              <- get(result_entities[[i]])
       
 
-      result_cat_attributes[[i]] <- ( df_entitydata  %>% select_if(~!all(is.na(.))) %>% select_if(~is.character(.)) )  %>%
+      result_cat_attributes[[i]] <- ( df_entitydata  %>% select(where(~!all(is.na(.)))) %>% select(where(~is.character(.))) )  %>%
         select(ends_with("_label") | ends_with("_scientific_name")) %>% 
         names()
       
-      boolean_list <-  ( df_entitydata  %>% select_if(~!all(is.na(.))) %>% select_if(~is.logical(.)) )  %>%
-        # select_if(~all( .=="false" | .=="true")) %>% 
-        # select_if(~!all(.=="false"))             %>%
-        # select_if(~!all(.=="true"))              %>% 
+      boolean_list <-  ( df_entitydata  %>% select(where(~!all(is.na(.)))) %>% select(where(~is.logical(.))) )  %>%
+        # select(where(~all( .=="false" | .=="true"))) %>% 
+        # select(where(~!all(.=="false")))             %>%
+        # select(where(~!all(.=="true")))              %>% 
         names()
       
       if (length(boolean_list) > 0) result_cat_attributes[[i]] <- unique( c(result_cat_attributes[[i]], boolean_list))
@@ -381,7 +381,7 @@ arenaAnalytics <- function(  ) {
           df_base_unit2   <- subset(df_base_unit,  eval(parse(text = base_UUID_)) %in% missing_ids)
           result_cat[[i]] <- bind_rows(df_entitydata, df_base_unit2 %>% select(all_of(names_in_data)) )
           result_cat[[i]] <- result_cat[[i]] %>% 
-            mutate_if(is.numeric, ~tidyr::replace_na(., 0))
+            mutate(across(where(is.numeric), ~tidyr::replace_na(., 0)))
           rm(names_in_data); rm(df_base_unit2)
         } else {
           result_cat[[i]] <- df_entitydata
@@ -553,14 +553,14 @@ arenaAnalytics <- function(  ) {
     # get categorical variables
     cat_names_uuid <- result_cat[[ arena.analyze$entity ]] %>%
       data.frame()               %>%
-      select_if(is.character)    %>%
+      select(where(is.character))    %>%
       select(ends_with("_uuid")) %>%
       names()
     
     # get numeric variables
     cat_names_num <- result_cat[[ arena.analyze$entity ]] %>%
       data.frame()                                        %>%
-      select_if(is.numeric)                               %>%
+      select(where(is.numeric))                               %>%
       select(-weight, -exp_factor_, -entity_count_)       %>%
       names() 
     
@@ -799,8 +799,8 @@ arenaAnalytics <- function(  ) {
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
       group_by( across( arena.analyze$dimensions ))  %>%        # here comes grouping variable(s) 
-      summarize_at( vars( ends_with(".Mean") ),     
-                    funs( tally = sum(!is.na(.)), survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
+      summarize( across( ends_with(".Mean") ,     
+                    list( tally = ~sum(!is.na(.)), ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
       as.data.frame(.) 
     
     names(out_mean) = gsub(pattern = "Mean_survey_", replacement = "", x = names(out_mean))
@@ -814,7 +814,7 @@ arenaAnalytics <- function(  ) {
     out_total <- design_srvyr_total           %>%
       group_by( across( arena.analyze$dimensions )) %>%    
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))  %>%  
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))  %>%  
       mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
     
@@ -822,7 +822,7 @@ arenaAnalytics <- function(  ) {
     out_area <- design_srvyr_area                      %>%
       group_by( across( arena.analyze$dimensions_baseunit )) %>%    
       summarize_at( vars(area=exp_factor_ ),      
-                    funs( survey_total(.) ))           %>%  
+                    list( ~survey_total(.) ))           %>%  
       as.data.frame(.) 
     
     
@@ -832,13 +832,13 @@ arenaAnalytics <- function(  ) {
     out_global_total <- jdesign %>%
       group_by( whole_area_ )   %>%       
       summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    funs( survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
       as.data.frame(.) 
     
     if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
       out_global_mean <- design_srvyr_global_mean  %>%
         summarize_at( vars(ends_with(".Mean") ),   
-                      funs( survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
+                      list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
         as.data.frame(.) 
     }
 
@@ -854,7 +854,7 @@ arenaAnalytics <- function(  ) {
       out_SRS_total <- jdesign                                      %>%
         group_by( whole_area_ )                                     %>%         
         summarize_at( vars( ends_with(".Total") ),      
-                      funs( survey_total(., vartype = c("var") )))  %>%  
+                      list( ~survey_total(., vartype = c("var") )))  %>%  
         as.data.frame(.) 
       
       var_global_total <- out_global_total %>% select(ends_with("_var")) 
