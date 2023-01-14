@@ -813,9 +813,9 @@ arenaAnalytics <- function(  ) {
     # TOTAL
     out_total <- design_srvyr_total           %>%
       group_by( across( arena.analyze$dimensions )) %>%    
-      summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))  %>%  
-      mutate(across(ends_with(".Total"), ~ .x/area, .names = "{col}_globalAverage")) %>%
+      summarize( across( c(exp_factor_, ends_with(".Total")),      
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))  %>%  
+      mutate(across(ends_with(".Total"), ~ .x/exp_factor_, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
     
     # AREA 
@@ -837,8 +837,8 @@ arenaAnalytics <- function(  ) {
     
     if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
       out_global_mean <- design_srvyr_global_mean  %>%
-        summarize_at( vars(ends_with(".Mean") ),   
-                      list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue ))) %>% 
+        summarize( across(c(ends_with(".Mean") ),   
+                      list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
         as.data.frame(.) 
     }
 
@@ -853,8 +853,8 @@ arenaAnalytics <- function(  ) {
       jdesign       <- update( design_srvyr_SRS_total, whole_area_ = 1 )
       out_SRS_total <- jdesign                                      %>%
         group_by( whole_area_ )                                     %>%         
-        summarize_at( vars( ends_with(".Total") ),      
-                      list( ~survey_total(., vartype = c("var") )))  %>%  
+        summarize( across(c( ends_with(".Total") ),      
+                      list( ~survey_total(., vartype = c("var") ))))  %>%  
         as.data.frame(.) 
       
       var_global_total <- out_global_total %>% select(ends_with("_var")) 
