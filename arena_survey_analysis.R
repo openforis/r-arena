@@ -818,12 +818,14 @@ arenaAnalytics <- function(  ) {
       mutate(across(ends_with(".Total"), ~ .x/exp_factor_, .names = "{col}_globalAverage")) %>%
       as.data.frame(.) 
     
+
     # AREA 
     out_area <- design_srvyr_area                      %>%
       group_by( across( arena.analyze$dimensions_baseunit )) %>%    
-      summarize_at( vars(area=exp_factor_ ),      
-                    list( ~survey_total(.) ))           %>%  
-      as.data.frame(.) 
+      summarize( across( exp_factor_ ,      
+                    list( ~survey_total(.) )))           %>%  
+      as.data.frame(.)  %>%
+      rename(area = exp_factor__1, area_sd = exp_factor__1_se)
     
     
     # ALL DATA (totals). Total variances are correctly computed here also for stratified sampling
@@ -831,8 +833,8 @@ arenaAnalytics <- function(  ) {
     
     out_global_total <- jdesign %>%
       group_by( whole_area_ )   %>%       
-      summarize_at( vars(area=exp_factor_, ends_with(".Total") ),      
-                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue )))         %>%  
+      summarize( across( c( exp_factor_, ends_with(".Total") ),      
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))         %>%  
       as.data.frame(.) 
     
     if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
@@ -845,7 +847,7 @@ arenaAnalytics <- function(  ) {
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select(all_of(base_UUID_)) %>% unique() )
     # drop out area estimates from this table
     out_global_total <- out_global_total %>% 
-      select(-starts_with("area")) 
+      select(-starts_with("exp_factor_")) 
     
     if (arena.stratification | arena.post_stratification) {
       
