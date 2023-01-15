@@ -801,14 +801,15 @@ arenaAnalytics <- function(  ) {
       group_by( across( arena.analyze$dimensions ))  %>%        # here comes grouping variable(s) 
       summarize( across( ends_with(".Mean") ,     
                     list( tally = ~sum(!is.na(.)), ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
-      as.data.frame(.) 
+      as.data.frame(.)  %>%
+      setNames( stringr::str_replace(names(.), ".Mean_2", ".Mean")) 
     
-    names(out_mean) = gsub(pattern = "Mean_survey_", replacement = "", x = names(out_mean))
-    sName           = df_analysis_combined %>% select(ends_with('.Mean')) %>% names() 
-    if (length(sName) == 1) {
-      sName = gsub("_ha.Mean", replacement="", sName )
-      names(out_mean) = gsub(pattern = "survey_mean", replacement = sName, x = names(out_mean))
-    }
+    # names(out_mean) = gsub(pattern = "Mean_survey_", replacement = "", x = names(out_mean))
+    # sName           = df_analysis_combined %>% select(ends_with('.Mean')) %>% names() 
+    # if (length(sName) == 1) {
+    #   sName = gsub("_ha.Mean", replacement="", sName )
+    #   names(out_mean) = gsub(pattern = "survey_mean", replacement = sName, x = names(out_mean))
+    # }
     
     # TOTAL
     out_total <- design_srvyr_total           %>%
@@ -816,7 +817,9 @@ arenaAnalytics <- function(  ) {
       summarize( across( c(exp_factor_, ends_with(".Total")),      
                     list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))  %>%  
       mutate(across(ends_with(".Total"), ~ .x/exp_factor_, .names = "{col}_globalAverage")) %>%
-      as.data.frame(.) 
+      as.data.frame(.)  %>%
+      setNames( stringr::str_replace(names(.), ".Total_1", ".Total")) %>%
+      setNames( stringr::str_replace(names(.), "exp_factor__1", "area"))
     
 
     # AREA 
@@ -835,13 +838,15 @@ arenaAnalytics <- function(  ) {
       group_by( whole_area_ )   %>%       
       summarize( across( c( exp_factor_, ends_with(".Total") ),      
                     list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))         %>%  
-      as.data.frame(.) 
+      as.data.frame(.)  %>%
+      setNames( stringr::str_replace(names(.), ".Total_1", ".Total"))
     
     if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
       out_global_mean <- design_srvyr_global_mean  %>%
         summarize( across(c(ends_with(".Mean") ),   
                       list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
-        as.data.frame(.) 
+        as.data.frame(.)  %>%
+        setNames( stringr::str_replace(names(.), ".Mean_1", ".Mean"))
     }
 
     out_global_total$tally <- nrow( df_base_unit %>% filter(weight>0) %>% select(all_of(base_UUID_)) %>% unique() )
@@ -908,15 +913,15 @@ arenaAnalytics <- function(  ) {
     out_area  <- joinLabels( result_labels, out_area ) 
     
     # rename columns
-    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.mean_se", ".sd"  ))
-    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.mean_var", ".var"))
-    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.mean_low",  ".ci_lower"  ))
-    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.mean_upp",  ".ci_upper"))
-    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.mean", ".mean"   )) 
+    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean_se",  ".sd"  ))
+    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean_var", ".var"))
+    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean_low", ".ci_lower"  ))
+    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean_upp", ".ci_upper"))
+    out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean", ".mean"   )) 
     
-    out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_se",".sd"  ))
+    out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_se", ".sd"  ))
     out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_var",".var"))
-    out_total <- setNames( out_total, stringr::str_replace( names(out_total), "area_se", "area_sd"  ))
+    out_total <- setNames( out_total, stringr::str_replace( names(out_total), "area_se",      "area_sd"  ))
     out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_low", ".ci_lower"))
     out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_upp", ".ci_upper"))
     out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total_globalAverage",".average"))
@@ -949,6 +954,12 @@ arenaAnalytics <- function(  ) {
 
     
   # rename columns
+  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_se",  ".sd"  ))
+  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_var", ".var"))
+  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_low", ".ci_lower"  ))
+  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_upp", ".ci_upper"))
+  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean", ".mean"   )) 
+  
   #  out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "area_se",    "area_sd"))
   out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "_ha.Total_se",  ".sd"))
   out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "_ha.Total_var", ".var"))
