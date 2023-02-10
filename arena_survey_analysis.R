@@ -536,7 +536,7 @@ arenaAnalytics <- function(  ) {
         result_labels[[dataindex + i]]  <- 
           categories[ df_cat_report$categoryName[[i]] ] %>% 
           data.frame                                    %>%
-          select(last_col(1:0))  # selects last two columns
+          select(last_col(1):last_col(0))  # selects last two columns
         
         names(result_labels[[dataindex + i]]) <- c("code","label") 
       }
@@ -798,19 +798,13 @@ arenaAnalytics <- function(  ) {
     
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
-      group_by( across( arena.analyze$dimensions ))  %>%        # here comes grouping variable(s) 
+      group_by( across( arena.analyze$dimensions ))  %>%     
       summarize( across( ends_with(".Mean") ,     
                     list( tally = ~sum(!is.na(.)), ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
       as.data.frame(.)  %>%
       setNames( stringr::str_replace(names(.), ".Mean_2", ".Mean")) 
     
-    # names(out_mean) = gsub(pattern = "Mean_survey_", replacement = "", x = names(out_mean))
-    # sName           = df_analysis_combined %>% select(ends_with('.Mean')) %>% names() 
-    # if (length(sName) == 1) {
-    #   sName = gsub("_ha.Mean", replacement="", sName )
-    #   names(out_mean) = gsub(pattern = "survey_mean", replacement = sName, x = names(out_mean))
-    # }
-    
+
     # TOTAL
     out_total <- design_srvyr_total           %>%
       group_by( across( arena.analyze$dimensions )) %>%    
