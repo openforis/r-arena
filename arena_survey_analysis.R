@@ -43,8 +43,8 @@ arenaAnalytics <- function(  ) {
   # set  options, see more at https://r-survey.r-forge.r-project.org/survey/html/surveyoptions.html
   #options(dplyr.summarise.inform      = FALSE)
   options(survey.ultimate.cluster     = FALSE)
-  options(survey.adjust.domain.lonely = TRUE)
-  options(survey.lonely.psu           = "adjust")  # alternatively "remove"
+  options(survey.adjust.domain.lonely = FALSE)
+  options(survey.lonely.psu           = "remove")  
   options(digits = 10)
   old_sigfig      <- options("pillar.sigfig") # https://github.com/gergness/srvyr/blob/main/vignettes/srvyr-vs-survey.Rmd
   options("pillar.sigfig" = 5)
@@ -521,6 +521,9 @@ arenaAnalytics <- function(  ) {
           select(code = result_names_category_1[i], label = all_of(label_column) ) %>%
           distinct() %>%
           arrange(.[1])
+        
+        # if species code is blank, then here is given a new label
+        result_labels[[i]]$label[result_labels[[i]]$code == ""] <- "No code" 
       }
       rm(df_cat_report); rm(label_column); rm(species_column)
     }
@@ -948,12 +951,14 @@ arenaAnalytics <- function(  ) {
 
     
   # rename columns
-  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_se",  ".sd"  ))
-  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_var", ".var"))
-  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_low", ".ci_lower"  ))
-  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_upp", ".ci_upper"))
-  out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean", ".mean"   )) 
-  
+  if (exists("out_global_mean")) {
+    out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_se",  ".sd"  ))
+    out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_var", ".var"))
+    out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_low", ".ci_lower"  ))
+    out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean_upp", ".ci_upper"))
+    out_global_mean  <- setNames( out_global_mean,  stringr::str_replace( names(out_global_mean),  "_ha.Mean", ".mean"   )) 
+  }
+      
   #  out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "area_se",    "area_sd"))
   out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "_ha.Total_se",  ".sd"))
   out_global_total <- setNames( out_global_total, stringr::str_replace(names(out_global_total), "_ha.Total_var", ".var"))
@@ -972,7 +977,7 @@ arenaAnalytics <- function(  ) {
            warning = function(w) { cat("No output - out_global_mean") },
            error   = function(e) { cat("No output - out_global_mean")
            })
-  rm(out_global_mean)
+  if (exists("out_global_mean")) rm(out_global_mean)
   
   if (arena.stratification | arena.post_stratification) {
     tryCatch({if (exists('user_file_path') & exists("var_efficiency")) write.csv(var_efficiency, out_file[[4]], row.names = F)},
