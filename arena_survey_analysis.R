@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  14.01.2023
+  # Last update:  17.03.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -538,9 +538,9 @@ arenaAnalytics <- function(  ) {
       for (i in (1:nrow(df_cat_report))) {
         result_labels[[dataindex + i]]  <- 
           categories[ df_cat_report$categoryName[[i]] ] %>% 
-          data.frame                                    %>%
-          select(last_col(1):last_col(0))  # selects last two columns
-        
+          as.data.frame()                               %>%
+          select(ends_with('.code'), ends_with('.label'))
+          
         names(result_labels[[dataindex + i]]) <- c("code","label") 
       }
     }
