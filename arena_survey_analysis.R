@@ -1016,7 +1016,7 @@ arenaAnalytics <- function(  ) {
     
     base_unit.results_out <- df_base_unit %>% select(all_of(base_UUID_), all_of( dimension_names ), weight) %>%
       dplyr::left_join( base_unit.results_out, by = base_UUID_) %>%
-      select(-base_UUID_)
+      select(-all_of(base_UUID_))
     
     tryCatch({if (exists('user_file_path')) write.csv(base_unit.results_out, outfile7, row.names = F)},
              warning = function(w) { cat("No output - base unit results") },
@@ -1028,7 +1028,7 @@ arenaAnalytics <- function(  ) {
         cluster.results_out <- cluster.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
         cluster.results_out <- get( arena.chainSummary$clusteringEntity ) %>% select(cluster_UUID_, all_of( arena.chainSummary$clusteringEntityKeys )) %>%
           dplyr::left_join( cluster.results_out, by = cluster_UUID_) %>%
-          select(-cluster_UUID_)
+          select(-all_of(cluster_UUID_))
         
         cluster.results_out[is.na(cluster.results_out)] <- 0
         
