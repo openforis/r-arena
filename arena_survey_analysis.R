@@ -423,7 +423,7 @@ arenaAnalytics <- function(  ) {
       base_unit.results[[i]] <- df_entitydata %>%
         # Add expansion factor for all result entities
         dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
-        group_by( across( base_UUID_ )) %>%
+        group_by( across( all_of(base_UUID_ ))) %>%
         dplyr::summarize(across(.cols= all_of(resultVariables),
                                 list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),
                                 .names = "{.col}.{.fn}"),
@@ -441,14 +441,14 @@ arenaAnalytics <- function(  ) {
         cluster.weights <- df_base_unit %>%
           filter(weight>0)              %>%
           select(cluster_UUID_, weight)  %>%
-          group_by( across( cluster_UUID_ ))   %>%
+          group_by( across( all_of(cluster_UUID_ )))   %>%
           dplyr::summarize( sumweight = sum(weight), n_baseunits = n() )
         
         cluster.results[[i]] <- df_entitydata %>%
           # Add expansion factor for all result entities
           dplyr::left_join(cluster.weights, by = cluster_UUID_) %>%
           dplyr::right_join((df_base_unit %>% select(all_of(base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
-          group_by( across( cluster_UUID_ ))                                                          %>%
+          group_by( across( all_of(cluster_UUID_ )))                                                             %>%
           dplyr::summarize(across(.cols= all_of(resultVariables),
                                   list(Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE)/max(sumweight)),
                                   .names = "{.col}.{.fn}"),
@@ -576,8 +576,8 @@ arenaAnalytics <- function(  ) {
       cluster_statistics  <- result_cat[[ arena.analyze$entity ]] %>%
         data.frame()                                              %>%
         filter(weight > 0)                                        %>%
-        distinct(!!! syms(base_UUID_), .keep_all = TRUE)           %>%
-        group_by( across( cluster_UUID_ ))                         %>%
+        distinct(!!! syms(base_UUID_), .keep_all = TRUE)          %>%
+        group_by( across( all_of(cluster_UUID_ )))                %>%
         dplyr::summarize( bu_count_ = n(), bu_sum_ = sum(weight), exp_factor_sum_ = sum(exp_factor_) )
       
       ids_2_survey       <- NULL
