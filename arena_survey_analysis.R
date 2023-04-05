@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  17.03.2023
+  # Last update:  5.04.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -99,9 +99,9 @@ arenaAnalytics <- function(  ) {
   # b) stratum attribute is missing
   if (is.null(arena.chainSummary$stratumAttribute))            arena.chainSummary$stratumAttribute            <- ""
   # nonresponse bias correction is missing
-  if (is.null(arena.chainSummary$nonResponseBiasCorrection))   arena.chainSummary$nonResponseBiasCorrection   <- FALSE
+  if (is.null(arena.chainSummary$analysis$nonResponseBiasCorrection))   arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
   # sampling design lookup table is missing -> no bias correction
-  if (is.null("categories$sampling_units_plan"))               arena.chainSummary$nonResponseBiasCorrection   <- FALSE
+  if (is.null("categories$sampling_units_plan"))               arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
   
   # Reporting area table check
   arena.reporting_area <- ifelse(is.null(arena.chainSummary$reportingCategory), FALSE, ifelse(arena.chainSummary$reportingCategory$name == "", FALSE, TRUE))
@@ -142,7 +142,7 @@ arenaAnalytics <- function(  ) {
         df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
       } else {  
         # 2. stratified sampling, nonresponse bias correction
-        if (arena.chainSummary$nonResponseBiasCorrection) {
+        if (arena.chainSummary$analysis$nonResponseBiasCorrection) {
           arena.samplingdesign_table                          <- as.data.frame(categories$sampling_units_plan) # read a lookup table
           level_name                                          <- paste0("level_", as.character(aoi.level_count), "_code")
           
@@ -164,7 +164,7 @@ arenaAnalytics <- function(  ) {
           arena.samplingdesign_table <- arena.samplingdesign_table %>%
             left_join( df_base_unit                    %>%
                          filter( weight > 0 )                    %>%
-                         group_by( across( arena.strat_attribute ))    %>%
+                         group_by( across( all_of(arena.strat_attribute )))    %>%
                          dplyr::summarize( cluster_count = n( ), sum_weight= sum(weight) ), by = arena.strat_attribute) %>%
             mutate( cluster_count            = ifelse( is.na(cluster_count ), 0, cluster_count) )      %>%
             mutate( arena_cluster_correction = ifelse( cluster_count>0 & design_number_psu>0, design_number_psu/cluster_count, 1))
@@ -176,7 +176,7 @@ arenaAnalytics <- function(  ) {
           
           # B. MISSING BASE UNITS IN CLUSTER: nonresponse bias correction, naive imputation method
           # clustered
-          if (cluster_UUID_ != "" & !arena.chainSummary$clusteringVariances & all(!is.na(arena.samplingdesign_table$design_number_ssu))) {
+          if (cluster_UUID_ != "" & !arena.chainSummary$analysis$clusteringVariances & all(!is.na(arena.samplingdesign_table$design_number_ssu))) {
             arena_cluster_statistics <- arena.samplingdesign_table %>%
               select( arena.strat_attribute, design_number_ssu )   %>%
               right_join( df_base_unit %>% 
@@ -221,10 +221,10 @@ arenaAnalytics <- function(  ) {
         
         
         # 2a. nonresponse effect: adjust base unit weights
-        if (arena.chainSummary$nonResponseBiasCorrection) {
+        if (arena.chainSummary$analysis$nonResponseBiasCorrection) {
           df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_cluster_correction
           # is the next line correct?
-          if (arena.chainSummary$clusteringVariances == FALSE) df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_bu_correction
+          if (arena.chainSummary$analysis$clusteringVariances == FALSE) df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_bu_correction
           # rescale back to max. 1
           #                df_base_unit$weight <- df_base_unit$weight / max(df_base_unit$weight)
         }
@@ -234,7 +234,7 @@ arenaAnalytics <- function(  ) {
         
         arena.expansion_factor <- df_base_unit %>%
           filter(weight>0)                     %>%
-          group_by( across( arena.strat_attribute )) %>%
+          group_by( across( all_of(arena.strat_attribute ))) %>%
           dplyr::summarize( aoi_weight_ = sum( weight ), aoi_count_ =n()) 
         
         arena.expansion_factor <- arena.expansion_factor %>%
@@ -261,7 +261,7 @@ arenaAnalytics <- function(  ) {
       df_base_unit$arena_cluster_correction  <- 1
       
       # clustering, no stratification        
-      if (cluster_UUID_ !="" & !arena.chainSummary$clusteringVariances) {
+      if (cluster_UUID_ !="" & !arena.chainSummary$analysis$clusteringVariances) {
         max_weight_in_cluster <- df_base_unit %>% 
           group_by( cluster_UUID_ )            %>%
           dplyr::summarize(sum_weight= sum(weight))  %>%
@@ -572,7 +572,7 @@ arenaAnalytics <- function(  ) {
     base_UUID_     <- paste0( arena.chainSummary$baseUnit, "_uuid")
     cluster_UUID_  <- ifelse( arena.chainSummary$clusteringEntity != "", paste0(arena.chainSummary$clusteringEntity, "_uuid"), "")
     
-    if ( cluster_UUID_ != "" & arena.chainSummary$clusteringVariances ) {
+    if ( cluster_UUID_ != "" & arena.chainSummary$analysis$clusteringVariances ) {
       cluster_statistics  <- result_cat[[ arena.analyze$entity ]] %>%
         data.frame()                                              %>%
         filter(weight > 0)                                        %>%
@@ -803,7 +803,7 @@ arenaAnalytics <- function(  ) {
     out_mean  <- design_srvyr_mean             %>%
       group_by( across( arena.analyze$dimensions ))  %>%     
       summarize( across( ends_with(".Mean") ,     
-                    list( tally = ~sum(!is.na(.)), ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
+                    list( tally = ~sum(!is.na(.)), ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$analysis$pValue )))) %>% 
       as.data.frame(.)  %>%
       setNames( stringr::str_replace(names(.), ".Mean_2", ".Mean")) 
     
@@ -812,7 +812,7 @@ arenaAnalytics <- function(  ) {
     out_total <- design_srvyr_total           %>%
       group_by( across( arena.analyze$dimensions )) %>%    
       summarize( across( c(exp_factor_, ends_with(".Total")),      
-                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))  %>%  
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$analysis$pValue ))))  %>%  
       mutate(across(ends_with(".Total"), ~ .x/exp_factor_, .names = "{col}_globalAverage")) %>%
       as.data.frame(.)  %>%
       setNames( stringr::str_replace(names(.), ".Total_1", ".Total")) %>%
@@ -834,14 +834,14 @@ arenaAnalytics <- function(  ) {
     out_global_total <- jdesign %>%
       group_by( whole_area_ )   %>%       
       summarize( across( c( exp_factor_, ends_with(".Total") ),      
-                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$pValue ))))         %>%  
+                    list( ~survey_total(., vartype = c("se", "var", "ci"), level=arena.chainSummary$analysis$pValue ))))         %>%  
       as.data.frame(.)  %>%
       setNames( stringr::str_replace(names(.), ".Total_1", ".Total"))
     
     if ((all(arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | (all(arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
       out_global_mean <- design_srvyr_global_mean  %>%
         summarize( across(c(ends_with(".Mean") ),   
-                      list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$pValue )))) %>% 
+                      list( ~survey_mean(., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$analysis$pValue )))) %>% 
         as.data.frame(.)  %>%
         setNames( stringr::str_replace(names(.), ".Mean_1", ".Mean"))
     }
@@ -991,7 +991,7 @@ arenaAnalytics <- function(  ) {
            error   = function(e) { cat("No output - out_area")
            })
   
-  if (arena.chainSummary$nonResponseBiasCorrection & arena.strat_attribute !="") {
+  if (arena.chainSummary$analysis$nonResponseBiasCorrection & arena.strat_attribute !="") {
     nonResponse_out1 <- df_base_unit %>% select( STRATUM=arena.strat_attribute, correction_factor = arena_cluster_correction ) %>% unique() %>% arrange(STRATUM)  
     tryCatch({if (exists('user_file_path') & exists("nonResponse_out1")) write.csv(nonResponse_out1, out_file[[5]], row.names = F)},
              warning = function(w) { cat("No output - nonResponse_out1") },
