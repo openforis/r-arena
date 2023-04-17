@@ -130,9 +130,8 @@ arenaAnalytics <- function(  ) {
       # get items from the lowest level with area
       aoi_df                   <- arena.chainSummary$reportingCategory$items        # levelIndex, level1code, label, level2code, ..., area
       
-
-
-      aoi_df$area[ is.na(aoi_df$area) ] <- 1
+      # if missing reporting area at the lowest level, set 1 ha
+      aoi_df$area[ is.na(aoi_df$area) & aoi_df$levelIndex == aoi.level_count] <- 1
       
       
       # 1. non-stratified sampling, compute expansion factor for the base unit
@@ -599,7 +598,7 @@ arenaAnalytics <- function(  ) {
       if (arena.chainSummary$postStratificationCategory != "") {
         arena.postcategory_table        <- as.data.frame( categories[[arena.chainSummary$postStratificationCategory]])
         if ('area' %in% names(arena.postcategory_table)) {
-          arena.postcategory_table$area <- is.numeric(arena.postcategory_table$area)
+          arena.postcategory_table$area <- as.numeric(arena.postcategory_table$area)
           arena.postcategory_table$area[ is.na(arena.postcategory_table$area) ] <- 0
           ps.weights                    <- arena.postcategory_table        %>% 
             select(postStratificationAttribute = code, Freq = area) 
