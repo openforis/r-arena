@@ -158,15 +158,42 @@ arenaAnalytics <- function(  ) {
     } # (arena.chainSummary$postStratificationAttribute != "")
     
     
+    arena.stratumcategory_table <- NULL
+    
+    if (arena.stratification) {
+      arena.stratumcategory_table        <- as.data.frame( categories[[ arena.chainSummary$stratumAttributeCategory ]])
+      # if hierarchical table, take data from the correct level
+      if (('level_1_code' %in% names(arena.stratumcategory_table)) & ('area_cumulative' %in% names(arena.stratumcategory_table))) {
+        # set missing area to 0
+        if (anyNA(arena.stratumcategory_table$area_cumulative)) arena.stratumcategory_table$area_cumulative[ is.na(arena.stratumcategory_table$area_cumulative) ] <- 0
+        arena.stratumcategory_table$area_cumulative <- as.numeric( arena.stratumcategory_table$area_cumulative )
+        arena.stratumcategory_table                 <- arena.stratumcategory_table %>%
+          filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
+          select(code, label, area=area_cumulative)
+      } else if ('area' %in% names(arena.stratumcategory_table)) {    # flat lookup table with area
+        if (anyNA(arena.stratumcategory_table$area)) arena.stratumcategory_table$area[ is.na(arena.stratumcategory_table$area) ] <- 1
+        arena.stratumcategory_table$area <- as.numeric( arena.stratumcategory_table$area )
+        arena.stratumcategory_table      <- arena.stratumcategory_table %>%
+          filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
+          select(code, label, area)
+      }
+    } # (arena.stratification)
+    
     # Reporting areas, hierarchical table, AOI = Area of Interest
-    if (arena.reporting_area) {
-      aoi.attributes           <- arena.chainSummary$reportingCategory$attributes   # list, attributes joined with
-      aoi.level_count          <- length( aoi.attributes ) 
-      # get items from the lowest level with area
-      aoi_df                   <- arena.chainSummary$reportingCategory$items        # levelIndex, level1code, label, level2code, ..., area
+    if (arena.reporting_area | (!is.null(arena.stratumcategory_table))) {
       
-      # if missing reporting area at the lowest level, set 1 ha
-      aoi_df$area[ is.na(aoi_df$area) & aoi_df$levelIndex == aoi.level_count] <- 1
+      if (arena.reporting_area & is.null(arena.stratumcategory_table)) {
+        aoi.attributes           <- arena.chainSummary$reportingCategory$attributes   # list, attributes joined with
+        aoi.level_count          <- length( aoi.attributes ) 
+        # get items from the lowest level with area
+        aoi_df                   <- arena.chainSummary$reportingCategory$items        # levelIndex, level1code, label, level2code, ..., area
+        
+        # if missing reporting area at the lowest level, set 1 ha
+        aoi_df$area[ is.na(aoi_df$area) & aoi_df$levelIndex == aoi.level_count] <- 1
+      } else if (!is.null(arena.stratumcategory_table)) {
+        aoi.level_count <- 1
+        aoi_df          <- arena.stratumcategory_table
+      }
       
       
       # 1. non-stratified sampling, compute expansion factor for the base unit
@@ -271,12 +298,20 @@ arenaAnalytics <- function(  ) {
           group_by( across( all_of(arena.strat_attribute ))) %>%
           dplyr::summarize( aoi_weight_ = sum( weight ), aoi_count_ =n()) 
         
-        arena.expansion_factor <- arena.expansion_factor %>%
+        #*# NEW
+        if (arena.reporting_area) {
+          arena.expansion_factor <- arena.expansion_factor %>%
           left_join(aoi_df                               %>% 
                       filter(aoi_df$levelIndex == aoi.level_count) %>%
                       select(level1Code, area), by =structure(names=arena.strat_attribute, "level1Code" )) %>% #https://stackoverflow.com/questions/38503960/dplyr-join-two-tables-within-a-function-where-one-variable-name-is-an-argument-t
           mutate(exp_factor_ = area / aoi_weight_ )
-        
+        } else {
+          arena.expansion_factor <- arena.expansion_factor %>%
+            left_join(aoi_df                               %>% 
+                      select(code, area), by =structure(names=arena.strat_attribute, "code" )) %>% 
+            mutate(exp_factor_ = area / aoi_weight_ )
+        }
+          
         df_base_unit <- df_base_unit       %>%
           left_join(arena.expansion_factor %>%
                       select( !!! syms(arena.strat_attribute), exp_factor_), by = arena.strat_attribute) 
@@ -680,7 +715,7 @@ arenaAnalytics <- function(  ) {
       dplyr::summarize( across(.cols= all_of(cat_names_num), 
                                list(Total = ~sum(.x, na.rm = TRUE)),  
                                .names = "{.col}") )                             %>%
-      ungroup()                                                                 %>%
+      as.data.frame()                                                           %>%
       left_join(df_analysis_weights, by = base_UUID_)
     
     
@@ -690,9 +725,14 @@ arenaAnalytics <- function(  ) {
       dplyr::summarize( across(.cols= all_of(cat_names_num), 
                                list(Total = ~sum(.x, na.rm = TRUE)),  
                                .names = "{.col}") )                             %>%
-      ungroup()                                                                 %>%
+      as.data.frame()                                                           %>%
       left_join(df_analysis_weights, by = base_UUID_)
     
+    # missing stratum code set to "", in order to report these too
+    if (arena.stratification) {
+      df_analysis_area[stratum_2_survey][is.na(df_analysis_area[stratum_2_survey])] <- ""
+      df_analysis_combined[stratum_2_survey][is.na(df_analysis_combined[stratum_2_survey])] <- ""
+    }
     
     if (arena.chainSummary$samplingStrategy %in% c(1:4)) { 
       # 1. SIMPLE RANDOM SAMPLING, cluster/non-cluster
@@ -914,7 +954,7 @@ arenaAnalytics <- function(  ) {
         if (names(result_labels[i]) %in% names(out_table)) {
           out_table$code <- out_table[[names(result_labels[i])]]
           out_table <- out_table                       %>% 
-            inner_join(result_labels[[i]], by= "code") %>%
+            full_join(result_labels[[i]], by= "code") %>%
             select(-code)
           
           out_table[[names(result_labels[i])]] <- out_table$label
