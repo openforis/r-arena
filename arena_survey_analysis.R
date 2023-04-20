@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  5.04.2023
+  # Last update:  20.04.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -121,6 +121,41 @@ arenaAnalytics <- function(  ) {
     # Stratification check: method, attribute and areas
     arena.stratification          <- ifelse(( arena.chainSummary$samplingStrategy==3 | arena.chainSummary$samplingStrategy==4 ) & arena.chainSummary$stratumAttribute != "", TRUE, FALSE)
     arena.strat_attribute         <- ifelse( arena.stratification, arena.chainSummary$stratumAttribute, "")
+    
+    
+    # parameters for post-stratification
+    arena.post_stratification  <- FALSE
+    ps.weights                 <- NULL 
+    # if post-stratification attribute is missing, set ""
+    if (is.null(arena.chainSummary$postStratificationAttribute)) arena.chainSummary$postStratificationAttribute <- ""
+    
+    # post-stratification attribute is given
+    if (arena.chainSummary$postStratificationAttribute != "") {
+      arena.post_stratification         <- TRUE
+      
+      # create a new flat post-stratification category table
+      if (arena.chainSummary$postStratificationAttributeCategory != "") {
+        arena.postcategory_table        <- as.data.frame( categories[[arena.chainSummary$postStratificationAttributeCategory]])
+        
+        # if hierarchical table, take data from the correct level
+        if (('level_1_code' %in% names(arena.postcategory_table)) & ('area_cumulative' %in% names(arena.postcategory_table))) {
+          # set missing area to 0
+          if (anyNA(arena.postcategory_table$area_cumulative)) arena.postcategory_table$area_cumulative[ is.na(arena.postcategory_table$area_cumulative) ] <- 0
+          arena.postcategory_table$area_cumulative <- as.numeric( arena.postcategory_table$area_cumulative )
+          arena.postcategory_table                 <- arena.postcategory_table %>%
+            filter(level == arena.chainSummary$postStratificationAttributeCategoryLevel) %>%
+            select(code, label, area=area_cumulative)
+        }
+        
+        if ('area' %in% names(arena.postcategory_table)) {           # get ps weights as areas
+          if (anyNA(arena.postcategory_table$area)) arena.postcategory_table$area[ is.na(arena.postcategory_table$area) ] <- 0
+          arena.postcategory_table$area <- as.numeric( arena.postcategory_table$area )
+          
+          ps.weights  <- arena.postcategory_table %>% 
+            select(postStratificationAttribute = code, Freq = area) 
+        } 
+      } # arena.chainSummary$postStratificationAttributeCategory != ""
+    } # (arena.chainSummary$postStratificationAttribute != "")
     
     
     # Reporting areas, hierarchical table, AOI = Area of Interest
@@ -588,42 +623,28 @@ arenaAnalytics <- function(  ) {
       ids_2_survey       <- NULL
     }
     
-    # post-stratification attribute is missing
-    if (is.null(arena.chainSummary$postStratificationAttribute)) arena.chainSummary$postStratificationAttribute <- ""
+    #*# stratification attribute name into Dimensions
+    if ( arena.stratification ) arena.analyze$dimensions <- unique(c(arena.analyze$dimensions, arena.strat_attribute))
     
-    if (arena.chainSummary$postStratificationAttribute != "") {
-      arena.post_stratification         <- TRUE
-      
-      # post-stratification category table
-      if (arena.chainSummary$postStratificationCategory != "") {
-        arena.postcategory_table        <- as.data.frame( categories[[arena.chainSummary$postStratificationCategory]])
-        if ('area' %in% names(arena.postcategory_table)) {
-          arena.postcategory_table$area <- as.numeric(arena.postcategory_table$area)
-          arena.postcategory_table$area[ is.na(arena.postcategory_table$area) ] <- 0
-          ps.weights                    <- arena.postcategory_table        %>% 
-            select(postStratificationAttribute = code, Freq = area) 
-        } else {
-          ps.weights <- df_base_unit                                       %>%
-            group_by( across( arena.chainSummary$postStratificationAttribute ))  %>%
-            dplyr::summarize( Freq = sum(exp_factor_))                     %>%         
-            data.frame()
-          
-          names(ps.weights)[[1]] <- "postStratificationAttribute" 
-        }
+    if ( arena.post_stratification  ) {
+      if (is.null(ps.weights)) {    # get ps weights from proportions in data
+        ps.weights <- df_base_unit                                             %>%
+          group_by( across( arena.chainSummary$postStratificationAttribute ))  %>%
+          dplyr::summarize( Freq = sum(exp_factor_))                           %>%              
+          data.frame()
+        
+        names(ps.weights)[[1]] <- "postStratificationAttribute" 
       }
+      if (!"NoData_" %in% ps.weights$code & anyNA(df_base_unit[arena.chainSummary$postStratificationAttribute ]) ) ps.weights <- rbind(ps.weights, c("NoData_", 0.001))
+      ps.weights$Freq <- as.numeric(ps.weights$Freq)
+      
       
       # add a static column name 'postStratificationAttribute'
       for (i in (1:length(result_cat))) {
         result_cat[[i]]$postStratificationAttribute <- result_cat[[i]][ arena.chainSummary$postStratificationAttribute ][[1]] 
         result_cat[[i]]$postStratificationAttribute[ is.na(result_cat[[i]]$postStratificationAttribute) ] <- "NoData"
       } 
-    } else {
-      arena.post_stratification  <- FALSE
-      ps.weights                 <- NULL 
-    }
-    
-    if ( arena.stratification )       arena.analyze$dimensions <- unique(c(arena.analyze$dimensions, arena.strat_attribute))
-    if ( arena.post_stratification  ) {
+
       arena.analyze$dimensions          <- unique( c(arena.analyze$dimensions,          "postStratificationAttribute" ))
       arena.analyze$dimensions_baseunit <- unique( c(arena.analyze$dimensions_baseunit, "postStratificationAttribute" ))
     }
