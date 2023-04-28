@@ -27,7 +27,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  20.04.2023
+  # Last update:  28.04.2023
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
@@ -104,7 +104,7 @@ arenaAnalytics <- function(  ) {
   if (is.null("categories$sampling_units_plan"))               arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
   
   # Reporting area table check
-  arena.reporting_area <- ifelse(is.null(arena.chainSummary$reportingCategory), FALSE, ifelse(arena.chainSummary$reportingCategory$name == "", FALSE, TRUE))
+#  arena.reporting_area_table_exists <- ifelse(is.null(arena.chainSummary$reportingCategory), FALSE, ifelse(arena.chainSummary$reportingCategory$name == "", FALSE, TRUE))
   
   # SAMPLING DESIGN EXISTS. 
   # Compute expansion factors, sum of area-based variables & weights up to base unit level, and non-response bias corrections
@@ -112,6 +112,7 @@ arenaAnalytics <- function(  ) {
     
     # get base unit data into a data frame
     df_base_unit                  <- get( arena.chainSummary$baseUnit )
+    df_base_unit$weight[is.na(df_base_unit$weight)] <- 0
     
     # take a copy of weight. Non-response bias correction may change weights. 
     df_base_unit$weight_original_ <- df_base_unit$weight 
@@ -158,51 +159,61 @@ arenaAnalytics <- function(  ) {
     } # (arena.chainSummary$postStratificationAttribute != "")
     
     
-    arena.stratumcategory_table <- NULL
+    aoi_df <- NULL
+    arena.stratification_area_exists <- FALSE
     
     if (arena.stratification) {
-      arena.stratumcategory_table        <- as.data.frame( categories[[ arena.chainSummary$stratumAttributeCategory ]])
+      aoi_df        <- as.data.frame( categories[[ arena.chainSummary$stratumAttributeCategory ]])
+      
+      if (arena.post_stratification)  aoi_df$area <- NULL 
+      
       # if hierarchical table, take data from the correct level
-      if (('level_1_code' %in% names(arena.stratumcategory_table)) & ('area_cumulative' %in% names(arena.stratumcategory_table))) {
+      if (('level_1_code' %in% names(aoi_df)) & ('area_cumulative' %in% names(aoi_df))) {
+        
         # set missing area to 0
-        if (anyNA(arena.stratumcategory_table$area_cumulative)) arena.stratumcategory_table$area_cumulative[ is.na(arena.stratumcategory_table$area_cumulative) ] <- 0
-        arena.stratumcategory_table$area_cumulative <- as.numeric( arena.stratumcategory_table$area_cumulative )
-        arena.stratumcategory_table                 <- arena.stratumcategory_table %>%
+        if (anyNA(aoi_df$area_cumulative)) aoi_df$area_cumulative[ is.na(aoi_df$area_cumulative) ] <- 0
+        aoi_df$area_cumulative <- as.numeric( aoi_df$area_cumulative )
+        if (!all(aoi_df$area_cumulative == 0)) arena.stratification_area_exists <- TRUE
+        
+        aoi_df                 <- aoi_df %>%
           filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
           select(code, label, area=area_cumulative)
-      } else if ('area' %in% names(arena.stratumcategory_table)) {    # flat lookup table with area
-        if (anyNA(arena.stratumcategory_table$area)) arena.stratumcategory_table$area[ is.na(arena.stratumcategory_table$area) ] <- 1
-        arena.stratumcategory_table$area <- as.numeric( arena.stratumcategory_table$area )
-        arena.stratumcategory_table      <- arena.stratumcategory_table %>%
+        aoi.level_count <- 1
+
+      } else if (('level_1_code' %in% names(aoi_df)) & 'area' %in% names(aoi_df)) {    # flat lookup table with area
+        if (anyNA(aoi_df$area)) aoi_df$area[ is.na(aoi_df$area) ] <- 0
+        aoi_df$area <- as.numeric( aoi_df$area )
+        if (!all(aoi_df$area == 0)) arena.stratification_area_exists <- TRUE
+        
+        aoi_df      <- aoi_df %>%
           filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
           select(code, label, area)
-      }
-    } # (arena.stratification)
-    
-    # Reporting areas, hierarchical table, AOI = Area of Interest
-    if (arena.reporting_area | (!is.null(arena.stratumcategory_table))) {
-      
-      if (arena.reporting_area & is.null(arena.stratumcategory_table)) {
-        aoi.attributes           <- arena.chainSummary$reportingCategory$attributes   # list, attributes joined with
-        aoi.level_count          <- length( aoi.attributes ) 
-        # get items from the lowest level with area
-        aoi_df                   <- arena.chainSummary$reportingCategory$items        # levelIndex, level1code, label, level2code, ..., area
-        
-        # if missing reporting area at the lowest level, set 1 ha
-        aoi_df$area[ is.na(aoi_df$area) & aoi_df$levelIndex == aoi.level_count] <- 1
-      } else if (!is.null(arena.stratumcategory_table)) {
         aoi.level_count <- 1
-        aoi_df          <- arena.stratumcategory_table
+
+      } else if ('area' %in% names(aoi_df)) {    # flat lookup table with area, no "level"
+        if (anyNA(aoi_df$area)) aoi_df$area[ is.na(aoi_df$area) ] <- 0
+        aoi_df$area <- as.numeric( aoi_df$area )
+        if (!all(aoi_df$area == 0)) arena.stratification_area_exists <- TRUE
+        
+        aoi_df      <- aoi_df %>%
+          select(code, label, area)
+        aoi.level_count <- 1
+      } else {
+        if (!arena.post_stratification) print(paste0("''area' column for strata missing in table '", arena.chainSummary$stratumAttributeCategory, "'. Stratification cannot be applied!!"))
+        arena.stratification <- FALSE
       }
-      
-      
+    } 
+    
+    # NO NONRESPONSE CORRECTION, or DEFAULT NON-RESPONSE CORRECTION VALUES
+    df_base_unit$arena_cluster_correction  <- 1  # for missing PSUs
+    df_base_unit$arena_bu_correction       <- 1  # for missing SSUs
+    
+    # Reporting areas, AOI = Area of Interest
+    if ( arena.stratification & !is.null(aoi_df) ) {  # stratification areas exist
       # 1. non-stratified sampling, compute expansion factor for the base unit
-      if ( !arena.stratification ) {
-        ifelse( sum(df_base_unit$weight) > 0, 
-                df_base_unit$exp_factor_ <- sum( aoi_df$area[aoi_df$levelIndex == aoi.level_count], na.rm = TRUE  ) / sum(df_base_unit$weight), 0)
-        df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
-      } else {  
         # 2. stratified sampling, nonresponse bias correction
+        if (sum(aoi_df$area) == 0) aoi_df$area <- 1
+
         if (arena.chainSummary$analysis$nonResponseBiasCorrection) {
           arena.samplingdesign_table                          <- as.data.frame(categories$sampling_units_plan) # read a lookup table
           level_name                                          <- paste0("level_", as.character(aoi.level_count), "_code")
@@ -220,6 +231,7 @@ arenaAnalytics <- function(  ) {
           
           
           # A. MISSING CLUSTERS IN STRATA: nonresponse bias correction, naive imputation method
+          df_base_unit$arena_cluster_correction <- NULL
           
           # get number of accessible clusters by stratum and correction factor
           arena.samplingdesign_table <- arena.samplingdesign_table %>%
@@ -232,28 +244,29 @@ arenaAnalytics <- function(  ) {
           
           
           df_base_unit <- df_base_unit %>%
-            left_join(arena.samplingdesign_table %>% select(arena.strat_attribute, arena_cluster_correction), by = arena.strat_attribute)
+            left_join(arena.samplingdesign_table %>% select( all_of(arena.strat_attribute), arena_cluster_correction), by = arena.strat_attribute)
           
           
           # B. MISSING BASE UNITS IN CLUSTER: nonresponse bias correction, naive imputation method
           # clustered
-          if (cluster_UUID_ != "" & !arena.chainSummary$analysis$clusteringVariances & all(!is.na(arena.samplingdesign_table$design_number_ssu))) {
+          if (cluster_UUID_ != "" & !arena.chainSummary$analysis$clusteringVariances ) {
+            df_base_unit$arena_bu_correction <- NULL
             arena_cluster_statistics <- arena.samplingdesign_table %>%
-              select( arena.strat_attribute, design_number_ssu )   %>%
+              select( all_of( arena.strat_attribute), design_number_ssu )   %>%
               right_join( df_base_unit %>% 
                             filter( weight > 0 )   %>%
-                            group_by( !!! syms(arena.strat_attribute), cluster_UUID_ ) %>%
-                            dplyr::summarize(bu_count = n( ), sum_weight= sum(weight)) )     %>%
-              mutate( arena_bu_correction = ifelse(!is.na(design_number_ssu) & design_number_ssu > 0, design_number_ssu/sum_weight, 1)) # this works if a full base unit weight is 1 !!
+                            group_by( !!! syms(arena.strat_attribute), across( all_of( cluster_UUID_ ))) %>%
+                            dplyr::summarize(bu_count = n( ), sum_weight = sum(weight)) )     %>%
+                            mutate( arena_bu_correction = ifelse(!is.na(design_number_ssu) & design_number_ssu > 0, design_number_ssu/sum_weight, 1)) # this works if a full base unit weight is 1 !!
             
             # check whether some clusters are split over more than 1 stratum
-            if (nrow(arena_cluster_statistics) != length(unique(arena_cluster_statistics$cluster_UUID_))) {
+            if (nrow(arena_cluster_statistics) != nrow(unique(arena_cluster_statistics[cluster_UUID_]))) {
               # list of clusters belonging to multiple strata
               analyze_overlaps <- arena_cluster_statistics %>%
-                group_by(cluster_UUID_ ) %>%
-                dplyr::summarize(c_count =n()) %>%
-                filter(c_count > 1)     %>%
-                pull(cluster_UUID_) 
+                group_by( across( all_of(cluster_UUID_ ))) %>%
+                dplyr::summarize( c_count = n() )          %>%
+                filter( c_count > 1 )                      %>%
+                pull( cluster_UUID_ ) 
               
               # fix this later, overlaps get all 1:
               arena_cluster_statistics$arena_bu_correction <- with(arena_cluster_statistics,
@@ -261,87 +274,63 @@ arenaAnalytics <- function(  ) {
               
               df_base_unit <- df_base_unit %>%
                 left_join(arena_cluster_statistics %>% 
-                            select(!!! syms(arena.strat_attribute),cluster_UUID_, arena_bu_correction), by = c(arena.strat_attribute,cluster_UUID_))
+                            select(!!! syms(arena.strat_attribute), all_of(cluster_UUID_), arena_bu_correction), by = c(arena.strat_attribute,cluster_UUID_))
               
             } else {  # no clusters split across strata
-              df_base_unit <- df_base_unit       %>%
-                left_join(arena_cluster_statistics %>% 
-                            select(cluster_UUID_, arena_bu_correction), by = cluster_UUID_)
+              df_base_unit <- df_base_unit          %>%
+                left_join( arena_cluster_statistics %>% 
+                            select( all_of( cluster_UUID_), arena_bu_correction), by = cluster_UUID_)
             }
-            
-          } else { # stratification, no clustering
-            df_base_unit$arena_bu_correction <- 1
-          } 
-          
-        } else { # end of nonresponse correction
-          
-          # C. NO NONRESPONSE CORRECTION
-          df_base_unit$arena_cluster_correction  <- 1
-          df_base_unit$arena_bu_correction       <- 1
-        }
+          } # clustered sampling design 
         
-        
-        # 2a. nonresponse effect: adjust base unit weights
-        if (arena.chainSummary$analysis$nonResponseBiasCorrection) {
+          # 2a. nonresponse effect: adjust base unit weights
           df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_cluster_correction
           # is the next line correct?
           if (arena.chainSummary$analysis$clusteringVariances == FALSE) df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_bu_correction
           # rescale back to max. 1
-          #                df_base_unit$weight <- df_base_unit$weight / max(df_base_unit$weight)
-        }
+          # df_base_unit$weight <- df_base_unit$weight / max(df_base_unit$weight)
+          
+        }  #  end: (arena.chainSummary$analysis$nonResponseBiasCorrection)
+
         
         
-        # calculate expansion factor for AOIs. AOI table exists
+        # calculate expansion factors for AOIs. AOI table exists
         
         arena.expansion_factor <- df_base_unit %>%
-          filter(weight>0)                     %>%
+          filter(weight > 0)                   %>%
           group_by( across( all_of(arena.strat_attribute ))) %>%
-          dplyr::summarize( aoi_weight_ = sum( weight ), aoi_count_ =n()) 
+          dplyr::summarize( aoi_weight_ = sum( weight ), aoi_count_ =n()) %>% 
+          left_join(aoi_df  %>% 
+               select(code, area), by =structure(names=arena.strat_attribute, "code" )) %>% 
+          mutate(exp_factor_ = area / aoi_weight_ ) %>%
+          as.data.frame()
         
-        #*# NEW
-        if (arena.reporting_area) {
-          arena.expansion_factor <- arena.expansion_factor %>%
-          left_join(aoi_df                               %>% 
-                      filter(aoi_df$levelIndex == aoi.level_count) %>%
-                      select(level1Code, area), by =structure(names=arena.strat_attribute, "level1Code" )) %>% #https://stackoverflow.com/questions/38503960/dplyr-join-two-tables-within-a-function-where-one-variable-name-is-an-argument-t
-          mutate(exp_factor_ = area / aoi_weight_ )
-        } else {
-          arena.expansion_factor <- arena.expansion_factor %>%
-            left_join(aoi_df                               %>% 
-                      select(code, area), by =structure(names=arena.strat_attribute, "code" )) %>% 
-            mutate(exp_factor_ = area / aoi_weight_ )
-        }
           
         df_base_unit <- df_base_unit       %>%
           left_join(arena.expansion_factor %>%
                       select( !!! syms(arena.strat_attribute), exp_factor_), by = arena.strat_attribute) 
         
-        # True expansion factor
-        df_base_unit$exp_factor_ <- df_base_unit$exp_factor_ * df_base_unit$weight 
+ #        df_base_unit$exp_factor_ <- df_base_unit$exp_factor_ * df_base_unit$weight 
         df_base_unit$exp_factor_[is.na(df_base_unit$exp_factor_)] <- 0
         
         
-      } # end of stratified sampling
+       # end of stratified sampling
       
     } else { 
-      # AOI table not defined
-      # create a clone of base unit entity
-      df_base_unit$exp_factor_               <- 1
-      df_base_unit$arena_cluster_correction  <- 1
-      
-      # clustering, no stratification        
-      if (cluster_UUID_ !="" & !arena.chainSummary$analysis$clusteringVariances) {
-        max_weight_in_cluster <- df_base_unit %>% 
-          group_by( cluster_UUID_ )            %>%
+
+      # next nonResponseBiasCorrection for SSUs
+      if (cluster_UUID_ != "" & arena.chainSummary$analysis$nonResponseBiasCorrection) {
+        max_weight_in_cluster <- df_base_unit        %>% 
+          group_by( across( all_of(cluster_UUID_ ))) %>%
           dplyr::summarize(sum_weight= sum(weight))  %>%
-          select(sum_weight)                  %>%
+          select(sum_weight)                         %>%
           max()
         
         df_base_unit$arena_bu_correction <- NULL
         
         df_base_unit <- df_base_unit %>% 
-          group_by( cluster_UUID_ )  %>%
-          dplyr::summarize(sum_weight= sum(weight))  %>%
+          group_by( across( all_of(cluster_UUID_ )))  %>%
+          dplyr::summarize(sum_weight= sum(weight))   %>%
           mutate( arena_bu_correction = max_weight_in_cluster/sum_weight) %>%
           select(-sum_weight) %>%
           right_join(df_base_unit, by=cluster_UUID_) 
@@ -349,10 +338,10 @@ arenaAnalytics <- function(  ) {
         df_base_unit$arena_bu_correction[is.na(df_base_unit$arena_bu_correction)] <- 1
         
         df_base_unit$weight <- df_base_unit$weight * df_base_unit$arena_bu_correction
-        
-      } else {
-        df_base_unit$arena_bu_correction <- 1
-      }
+      } 
+      
+      # set expansion factor, no AOI table 
+      df_base_unit$exp_factor_   <- df_base_unit$weight
     }
     
     
@@ -509,7 +498,7 @@ arenaAnalytics <- function(  ) {
         
         cluster.weights <- df_base_unit %>%
           filter(weight>0)              %>%
-          select(cluster_UUID_, weight)  %>%
+          select(all_of(cluster_UUID_), weight)  %>%
           group_by( across( all_of(cluster_UUID_ )))   %>%
           dplyr::summarize( sumweight = sum(weight), n_baseunits = n() )
         
@@ -638,8 +627,8 @@ arenaAnalytics <- function(  ) {
     
     
     # Compute statistics about accessible base units by clusters: only used to compute variances
-    base_UUID_     <- paste0( arena.chainSummary$baseUnit, "_uuid")
-    cluster_UUID_  <- ifelse( arena.chainSummary$clusteringEntity != "", paste0(arena.chainSummary$clusteringEntity, "_uuid"), "")
+    # base_UUID_     <- paste0( arena.chainSummary$baseUnit, "_uuid")
+    # cluster_UUID_  <- ifelse( arena.chainSummary$clusteringEntity != "", paste0(arena.chainSummary$clusteringEntity, "_uuid"), "")
     
     if ( cluster_UUID_ != "" & arena.chainSummary$analysis$clusteringVariances ) {
       cluster_statistics  <- result_cat[[ arena.analyze$entity ]] %>%
@@ -649,10 +638,8 @@ arenaAnalytics <- function(  ) {
         group_by( across( all_of(cluster_UUID_ )))                %>%
         dplyr::summarize( bu_count_ = n(), bu_sum_ = sum(weight), exp_factor_sum_ = sum(exp_factor_) )
       
-      ids_2_survey       <- NULL
-    } else if (cluster_UUID_ != "") {
-      cluster_statistics <- NA
-      ids_2_survey       <- cluster_UUID_ 
+      ids_2_survey       <- ifelse(arena.chainSummary$analysis$clusteringVariances, NULL, cluster_UUID_)
+      
     } else {
       cluster_statistics <- NA
       ids_2_survey       <- NULL
@@ -729,7 +716,10 @@ arenaAnalytics <- function(  ) {
       left_join(df_analysis_weights, by = base_UUID_)
     
     # missing stratum code set to "", in order to report these too
+    stratum_2_survey <- NULL # ifelse cannot assign NULL
+    
     if (arena.stratification) {
+      if (arena.strat_attribute != "") stratum_2_survey <- arena.strat_attribute
       df_analysis_area[stratum_2_survey][is.na(df_analysis_area[stratum_2_survey])] <- ""
       df_analysis_combined[stratum_2_survey][is.na(df_analysis_combined[stratum_2_survey])] <- ""
     }
@@ -740,8 +730,7 @@ arenaAnalytics <- function(  ) {
       # 3. STRATIFIED RANDOM SAMPLING, cluster/non-cluster  
       # 4. STRATIFIED SYSTEMATIC SAMPLING, cluster/non-cluster
       
-      stratum_2_survey <- NULL # ifelse cannot assign NULL
-      if (arena.strat_attribute != "") stratum_2_survey <- arena.strat_attribute
+      arena.weights <- ifelse(arena.stratification & arena.stratification_area_exists, "exp_factor_", "weight") 
       
       # if stratification, compute SRS case. Needed to compute efficiency of stratification.
       if (arena.stratification | arena.post_stratification) {
@@ -761,7 +750,7 @@ arenaAnalytics <- function(  ) {
           ids       = !!ids_2_survey,
           strata    = !!stratum_2_survey,
           fpc       = NULL, 
-          weights   = exp_factor_,  
+          weights   = !!arena.weights,  
           nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
           variables = c( arena.analyze$dimensions, ends_with('.Mean')) )
       
@@ -773,7 +762,7 @@ arenaAnalytics <- function(  ) {
             ids       = !!ids_2_survey,
             strata    = !!stratum_2_survey,
             fpc       = NULL, 
-            weights   = exp_factor_,  
+            weights   = !!arena.weights,  
             nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
             variables = c( arena.analyze$dimensions_baseunit, ends_with('.Mean')) )
       }
@@ -1052,7 +1041,7 @@ arenaAnalytics <- function(  ) {
            })
   
   if (arena.chainSummary$analysis$nonResponseBiasCorrection & arena.strat_attribute !="") {
-    nonResponse_out1 <- df_base_unit %>% select( STRATUM=arena.strat_attribute, correction_factor = arena_cluster_correction ) %>% unique() %>% arrange(STRATUM)  
+    nonResponse_out1 <- df_base_unit %>% select( STRATUM = all_of(arena.strat_attribute), correction_factor = arena_cluster_correction ) %>% unique() %>% arrange(STRATUM)  
     tryCatch({if (exists('user_file_path') & exists("nonResponse_out1")) write.csv(nonResponse_out1, out_file[[5]], row.names = F)},
              warning = function(w) { cat("No output - nonResponse_out1") },
              error   = function(e) { cat("No output - nonResponse_out1")
@@ -1074,7 +1063,7 @@ arenaAnalytics <- function(  ) {
     if (arena.post_stratification) dimension_names <- unique( c(dimension_names, arena.chainSummary$postStratificationAttribute ))
     
     
-    base_unit.results_out <- df_base_unit %>% select(all_of(base_UUID_), all_of( dimension_names ), weight) %>%
+    base_unit.results_out <- df_base_unit %>% select(all_of(base_UUID_), all_of( dimension_names ), weight, exp_factor=exp_factor_) %>%
       dplyr::left_join( base_unit.results_out, by = base_UUID_) %>%
       select(-all_of(base_UUID_))
     
@@ -1086,7 +1075,9 @@ arenaAnalytics <- function(  ) {
     if (cluster_UUID_ !="") {
         outfile8            <- paste0( out_path, result_entities[[i]], "_cluster_results.csv")
         cluster.results_out <- cluster.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
-        cluster.results_out <- get( arena.chainSummary$clusteringEntity ) %>% select(cluster_UUID_, all_of( arena.chainSummary$clusteringEntityKeys )) %>%
+        #cluster.results_out <- get( arena.chainSummary$clusteringEntity ) %>% select(cluster_UUID_, all_of( arena.chainSummary$clusteringEntityKeys )) %>%
+        cluster.results_out <- df_base_unit %>% dplyr::select(all_of(cluster_UUID_), all_of( arena.chainSummary$clusteringEntityKeys )) %>%
+          unique() %>%
           dplyr::left_join( cluster.results_out, by = cluster_UUID_) %>%
           select(-all_of(cluster_UUID_))
         
