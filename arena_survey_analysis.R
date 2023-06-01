@@ -97,13 +97,17 @@ arenaAnalytics <- function(  ) {
         
         for ( j in (1 : length( arena.analyze$dimensions ))){
           arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
-                                                               as.character(entity_datatype[arena.analyze$dimensions[[j]]]), "character")
+                                                               as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
           arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
           arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
         }
         arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
         arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
         arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
+        # change comma to dot (if used as decimal separator)
+        if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
+        arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
+        arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
         rm(entity_datatype)
       }
     } else {
@@ -209,7 +213,6 @@ arenaAnalytics <- function(  ) {
         aoi_df      <- aoi_df %>%
           filter( level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
           select( code = code_joint, label, area=area_cumulative, design_psu, design_ssu)
-        aoi.level_count <- 1
         
       } else if (('level_1_code' %in% names( aoi_df)) & 'area' %in% names( aoi_df)) {    # flat lookup table with area
         if ( anyNA( aoi_df$area)) aoi_df$area[ is.na( aoi_df$area) ] <- 0
@@ -219,21 +222,20 @@ arenaAnalytics <- function(  ) {
         aoi_df      <- aoi_df %>%
           dplyr::filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
           dplyr::select( code, label, area, design_psu, design_ssu)
-        aoi.level_count <- 1
         
-      } else if ('area' %in% names( aoi_df)) {    # flat lookup table with area, no "level"
+      } else if ( 'area' %in% names( aoi_df)) {    # flat lookup table with area, no "level"
         if ( anyNA( aoi_df$area)) aoi_df$area[ is.na( aoi_df$area) ] <- 0
         aoi_df$area <- as.numeric( aoi_df$area )
         if ( !all( aoi_df$area == 0)) arena.stratification_area_exists <- TRUE
         
-        if ('design_psu' %in% names( aoi_df) & 'design_ssu' %in% names( aoi_df)) {
+        if ( 'design_psu' %in% names( aoi_df) & 'design_ssu' %in% names( aoi_df)) {
           aoi_df <- aoi_df %>%
             select( code, label, area, design_psu, design_ssu)
-        } else if ('design_ssu' %in% names( aoi_df)) {
+        } else if ( 'design_ssu' %in% names( aoi_df)) {
           aoi_df <- aoi_df %>%
             select( code, label, area, design_ssu) %>%
             dplyr::mutate( design_psu = 0)
-        } else if ('design_psu' %in% names( aoi_df)) {
+        } else if ( 'design_psu' %in% names( aoi_df)) {
           aoi_df <- aoi_df %>%
             select( code, label, area, design_psu) %>%
             dplyr::mutate( design_ssu = 0)
@@ -241,10 +243,13 @@ arenaAnalytics <- function(  ) {
           aoi_df <- aoi_df %>%
             select( code, label, area)
         }
-        aoi.level_count <- 1
+      } else if ( arena.analyze$reportingArea > 0 ) {
+          aoi_df$area <- 0.0
+      } else if ( !arena.post_stratification ) {
+          print(paste0( "''area' column for strata missing in table '", arena.chainSummary$stratumAttributeCategory, "'. Stratification cannot be applied!!")) 
+          arena.stratification <- FALSE
       } else {
-        if ( !arena.post_stratification) print(paste0("''area' column for strata missing in table '", arena.chainSummary$stratumAttributeCategory, "'. Stratification cannot be applied!!"))
-        arena.stratification <- FALSE
+          arena.stratification <- FALSE
       }
     } 
     
@@ -378,8 +383,11 @@ arenaAnalytics <- function(  ) {
         dplyr::summarize( aoi_weight_ = sum( weight ))               %>% 
         dplyr::left_join( aoi_df                                     %>% 
                             dplyr::select( all_of( arena.strat_attribute), area), by = arena.strat_attribute ) %>% 
-        dplyr::mutate( exp_factor_ = area / aoi_weight_ )             %>%
-        as.data.frame()
+        data.frame()
+      
+      if ( all( aoi_df$area == 0) & ( arena.analyze$reportingArea > 0 )) arena.expansion_factor$area <-  arena.analyze$reportingArea / sum( arena.expansion_factor$aoi_weight_) *  arena.expansion_factor$aoi_weight_ 
+      
+      arena.expansion_factor$exp_factor_ <- arena.expansion_factor$area / arena.expansion_factor$aoi_weight_ 
       
       df_base_unit <- df_base_unit                                   %>%
         dplyr::left_join( arena.expansion_factor                     %>%
@@ -391,16 +399,21 @@ arenaAnalytics <- function(  ) {
         dplyr::filter( weight > 0 )                                  %>%
         dplyr::group_by( across( all_of( arena.strat_attribute )))   %>%
         dplyr::summarize( aoi_weight_ = sum( weight ))               %>% 
-        dplyr::mutate( exp_factor_ = 1 / aoi_weight_ )               %>%
-        as.data.frame()
+        data.frame()
+      
+      if ( arena.analyze$reportingArea > 0 ) arena.expansion_factor$area <-  arena.analyze$reportingArea / sum( arena.expansion_factor$aoi_weight_) *  arena.expansion_factor$aoi_weight_ 
+      arena.expansion_factor$exp_factor_ <- arena.expansion_factor$area / arena.expansion_factor$aoi_weight_ 
       
       df_base_unit <- df_base_unit                                   %>%
         dplyr::left_join( arena.expansion_factor                     %>%
                             dplyr::select( !!! syms( arena.strat_attribute), exp_factor_), by = arena.strat_attribute) %>%
         dplyr::mutate( exp_factor_ = exp_factor_ * weight)
       
+    } else if ( arena.analyze$reportingArea > 0 ) {
+      df_base_unit$exp_factor_   <- arena.analyze$reportingArea / sum( df_base_unit$weight) * df_base_unit$weight
+      
     } else {
-      # no stratification, no AOI table 
+      # no stratification, no AOI data 
       df_base_unit$exp_factor_   <- df_base_unit$weight 
     }
     
@@ -1197,7 +1210,7 @@ arenaAnalytics <- function(  ) {
   }
   
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
-    if ( Sys.info()['sysname']=="Windows" ) processMessage = " Result files in /Documents/arena/SURVEYNAME/user_output/"
+    if ( Sys.info()['sysname']=="Windows" ) processMessage = paste0(" Result files in /Documents/arena/arena-",  arena.chainSummary$surveyName, "-DATE_TIME", "/user_output/")
   }
   
   processMessage = paste0("Arena Analytics: Process completed. ", processMessage )
