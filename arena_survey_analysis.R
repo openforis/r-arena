@@ -818,8 +818,7 @@ arenaAnalytics <- function(  ) {
       
       df_analysis_combined <- df_analysis_combined                     %>%  
         dplyr::left_join( df_analysis_weights, by = cluster_UUID_)
-    } 
-    else {
+    } else {
       df_analysis_area <- df_analysis_area                             %>%
         dplyr::left_join( df_analysis_weights, by = base_UUID_)
       
@@ -955,6 +954,13 @@ arenaAnalytics <- function(  ) {
       arena.analyze$dimensions_baseunit <- arena.analyze$dimensions_baseunit[! arena.analyze$dimensions_baseunit %in% c( arena.chainSummary$postStratificationAttribute, 'postStratificationAttribute')]
     }
     
+    # AREA 
+    out_area <- design_srvyr_area                                   %>%
+      dplyr::group_by( across( arena.analyze$dimensions_baseunit )) %>%    
+      dplyr::summarize( across( exp_factor_ ,      
+                                list( ~survey_total(.) )))          %>%  
+      as.data.frame(.)  %>%
+      rename( area = exp_factor__1, area_sd = exp_factor__1_se)
     
     # MEANS (per hectares) for selected categories
     out_mean  <- design_srvyr_mean             %>%
@@ -964,25 +970,11 @@ arenaAnalytics <- function(  ) {
       as.data.frame(.)  %>%
       setNames( stringr::str_replace( names(.), ".Mean_2", ".Mean")) 
     
-    
-    # TOTAL
-    out_total <- design_srvyr_total           %>%
-      dplyr::group_by( across( arena.analyze$dimensions )) %>%    
-      dplyr::summarize( across( c(exp_factor_, ends_with(".Total")),      
-                                list( ~survey_total( ., vartype = c("se", "var", "ci"), level=arena.chainSummary$analysis$pValue ))))  %>%  
-      dplyr::mutate( across(ends_with(".Total"), ~ .x/exp_factor_, .names = "{col}_globalAverage")) %>%
-      as.data.frame(.)  %>%
-      setNames( stringr::str_replace( names(.), ".Total_1", ".Total")) %>%
-      setNames( stringr::str_replace( names(.), "exp_factor__1", "area"))
-    
-    
-    # AREA 
-    out_area <- design_srvyr_area                      %>%
-      dplyr::group_by( across( arena.analyze$dimensions_baseunit )) %>%    
-      dplyr::summarize( across( exp_factor_ ,      
-                                list( ~survey_total(.) )))           %>%  
-      as.data.frame(.)  %>%
-      rename( area = exp_factor__1, area_sd = exp_factor__1_se)
+    # compute totals, multiple means by area
+    out_mean_sub  <- out_mean[,  ( length(arena.analyze$dimensions) + 2) : ncol( out_mean)]
+    out_total     <- cbind( out_area, out_area$area * out_mean_sub)
+    out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total"))
+    rm( out_mean_sub)
     
     
     # ALL DATA (totals). Total variances are correctly computed here also for stratified sampling
