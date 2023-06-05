@@ -85,10 +85,9 @@ arenaAnalytics <- function(  ) {
       if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
       if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
       
-      if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ){
+      if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
         return( "Arena Analytics: No entity to report" )
-      }
-      if ( is.null( arena.analyze$dimensions ) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ){
+      } else if ( is.null( arena.analyze$dimensions ) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ){
         return( "Arena Analytics: No dimension to report" )
       } else {
         arena.analyze$dimensions_datatypes   <- c()
