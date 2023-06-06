@@ -1074,8 +1074,8 @@ arenaAnalytics <- function(  ) {
     
     
     out_file <- list()
-    out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, "_out_mean.csv")
-    out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, "_out_total.csv")
+    out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, "--mean.csv")
+    out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, "--total.csv")
     
     tryCatch({if (exists('user_file_path') & exists("out_mean"))  write.csv(out_mean, out_file[[1]],  row.names = F)},
              warning = function( w ) { cat("No output - out_mean") },
@@ -1091,11 +1091,11 @@ arenaAnalytics <- function(  ) {
   
   if ( arena.analyze$reportingMethod == '2' ) arena.analyze$dimensions <- arena.analyze$dimensions_input 
   
-  out_file[[3]] <- paste0(user_file_path, arena.analyze$entity, "_out_global_total.csv")
-  out_file[[4]] <- paste0(user_file_path, arena.analyze$entity, "_relative_efficiency.csv")
-  out_file[[5]] <- paste0(user_file_path, arena.analyze$entity, "_PSU_nonresponse_correction.csv")
-  out_file[[6]] <- paste0(user_file_path, arena.analyze$entity, "_area_estimates.csv")
-  out_file[[7]] <- paste0(user_file_path, arena.analyze$entity, "_out_global_mean.csv")
+  out_file[[3]] <- paste0(user_file_path, arena.analyze$entity,  "--global_total.csv")
+  out_file[[4]] <- paste0(user_file_path, arena.analyze$entity,  "--relative_efficiency.csv")
+  out_file[[5]] <- paste0(user_file_path, arena.strat_attribute, "--PSU_nonresponse_correction.csv")
+  out_file[[6]] <- paste0(user_file_path, arena.analyze$entity,  "--area_estimates.csv")
+  out_file[[7]] <- paste0(user_file_path, arena.analyze$entity,  "--global_mean.csv")
   
   
   # rename columns
@@ -1139,12 +1139,14 @@ arenaAnalytics <- function(  ) {
            error   = function( e ) { cat("No output - out_area")
            })
   
-  if ( arena.chainSummary$analysis$nonResponseBiasCorrection & arena.stratification ) {
-    nonResponse_out1 <- df_base_unit %>% select( STRATUM = all_of( arena.strat_attribute), correction_factor = arena_psu_correction ) %>% unique() %>% arrange( STRATUM)  
-    tryCatch({if (exists('user_file_path') & exists("nonResponse_out1")) write.csv( nonResponse_out1, out_file[[5]], row.names = F)},
-             warning = function( w ) { cat("No output - nonResponse_out1") },
-             error   = function( e ) { cat("No output - nonResponse_out1")
-             })
+  if ( arena.chainSummary$analysis$nonResponseBiasCorrection) {
+    if ( arena.stratification | arena.post_stratification ) {
+      nonResponse_out1 <- df_base_unit %>% select( STRATUM = all_of( arena.strat_attribute), correction_factor = arena_ssu_correction ) %>% unique() %>% arrange( STRATUM)  
+      tryCatch({if (exists('user_file_path') & exists("nonResponse_out1")) write.csv( nonResponse_out1, out_file[[5]], row.names = F)},
+               warning = function( w ) { cat("No output - nonResponse_out1") },
+               error   = function( e ) { cat("No output - nonResponse_out1")
+               })
+    }
   }
   
   
