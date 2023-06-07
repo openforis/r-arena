@@ -5,7 +5,7 @@
   The results also contain totals and means over domains, such as strata.
   The results will be written into CSV files.
   
-  This function can be called in Arena data processing chain, after running 'persist-results.R'
+  This function can be called in Arena data processing chain, after running 'persist-results.R'. 
   The OF Arena manual containing the description of the calculation chain is available at https://docs.google.com/document/d/1GWerrExvbdT5oOOlwdkE9pptK4pVbQxwtgaSNPasmKA/view
    
   About this script:
