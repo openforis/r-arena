@@ -28,7 +28,9 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  30.05.2023
+  # Last update:  7.05.2023
+  # Notice: Methods for computing results with "post-stratification" are not yet working. This method will be revised in 2023.
+  # 
   #**********************************************************************************************
   
   tryCatch( usePackage('tidyr'),
