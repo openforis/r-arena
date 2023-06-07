@@ -1,6 +1,14 @@
 # arena-r
-  The function in _arena-survey-analysis.R_ is used to compute statistical results for (active) area-based quantitative variables in Open Foris (OF) Arena.
-  It also computes area estimates for given dimensions, either as combination of dimensions or separately. 
+  The function in _arena-survey-analysis.R_ is used to compute statistical results for all (active) area-based quantitative variables in Open Foris (OF) Arena.
+  The list of these variables are shown in Arena user-interface (UI) as shown below:
+  
+  ![Arena calculation chain in UI](../master/docs/images/ActiveAreabasedQuantitativeVariables.png)
+  
+  Currently, only one entity, such as _tree_ in the picture above, can be selected for computing the results. 
+  
+  The script also computes area estimates for given dimensions, either as combination of dimensions or separately. 
+  The dimensions are selected in the Arena UI, and they can be any categorical, boolean, or taxonomic attribute in the input data, or categorical attribute in the processing chain (such as _plot_fra_ shown above). 
+  
   The result statistics contain means, totals, and associated standard deviations, variances, confidence intervals, and sample sizes.  
   The results also contain totals and means over domains, such as strata.
   The results will be written into CSV files.
