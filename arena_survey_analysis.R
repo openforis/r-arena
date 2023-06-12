@@ -28,7 +28,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  7.05.2023
+  # Last update:  12.06.2023
   # Notice: Methods for computing results with "post-stratification" are not yet working. This method will be revised in 2023.
   # 
   #**********************************************************************************************
@@ -971,6 +971,7 @@ arenaAnalytics <- function(  ) {
       as.data.frame(.)  %>%
       setNames( stringr::str_replace( names(.), ".Mean_2", ".Mean")) 
     
+
     # compute totals, multiple means by area
     out_mean_sub  <- out_mean[,  ( length(arena.analyze$dimensions) + 2) : ncol( out_mean)]
     out_total     <- cbind( out_area, out_area$area * out_mean_sub)
@@ -1058,6 +1059,10 @@ arenaAnalytics <- function(  ) {
     out_mean  <- joinLabels( result_labels, out_mean )
     out_total <- joinLabels( result_labels, out_total )
     out_area  <- joinLabels( result_labels, out_area ) 
+    
+    #omit rows with NA 
+    out_mean        <- na.omit( out_mean )
+    out_total       <- subset( out_total, area > 0 )
     
     # rename columns
     out_mean  <- setNames( out_mean,  stringr::str_replace( names(out_mean),  "_ha.Mean_se",  ".sd"  ))
