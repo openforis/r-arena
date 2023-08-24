@@ -28,7 +28,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  12.06.2023
+  # Last update:  24.08.2023
   # Notice: Methods for computing results with "post-stratification" are not yet working. This method will be revised in 2023.
   # 
   #**********************************************************************************************
@@ -84,6 +84,16 @@ arenaAnalytics <- function(  ) {
     if ( !is.null( arena.chainSummary$analysis$entity) & !is.null( arena.chainSummary$analysis$dimensions )) {
       arena.analyze$entity       <- trimws( arena.chainSummary$analysis$entity )
       arena.analyze$dimensions   <- trimws( arena.chainSummary$analysis$dimensions )
+      
+      # drop out totally blank (NA) columns
+      drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
+      # assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+      # assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+      if ( length( drop_names) > 0) {
+        arena.chainSummary$analysis$dimensions <- arena.chainSummary$analysis$dimensions[!arena.chainSummary$analysis$dimensions %in% drop_names ]
+        arena.analyze$dimensions               <- arena.analyze$dimensions[ !arena.analyze$dimensions %in% drop_names ]
+      }   
+      
       if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
       if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
       
@@ -94,6 +104,13 @@ arenaAnalytics <- function(  ) {
       } else {
         arena.analyze$dimensions_datatypes   <- c()
         arena.analyze$dimensions_at_baseunit <- c()
+        
+        # drop out totally blank (NA) columns
+        drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
+        assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+        assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+        arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
+        
         entity_datatype <- lapply(get( arena.analyze$entity), class)
         
         for ( j in (1 : length( arena.analyze$dimensions ))){
@@ -199,7 +216,10 @@ arenaAnalytics <- function(  ) {
           aoi_df$design_psu <- 0
           aoi_df$design_ssu <- 0
         }
-      } 
+      } else {
+        aoi_df$design_psu <- 0
+        aoi_df$design_ssu <- 0
+      }
       
       if ( arena.post_stratification )  aoi_df$area <- NULL 
       
@@ -220,30 +240,24 @@ arenaAnalytics <- function(  ) {
         aoi_df$area <- as.numeric( aoi_df$area )
         if ( !all( aoi_df$area == 0)) arena.stratification_area_exists <- TRUE
         
-        aoi_df      <- aoi_df %>%
-          dplyr::filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
-          dplyr::select( code, label, area, design_psu, design_ssu)
+        if ('code_joint' %in% names(aoi_df )) {
+          aoi_df      <- aoi_df %>%
+            dplyr::filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
+            dplyr::select( code = code_joint, label, area, design_psu, design_ssu)
+        } else {
+          aoi_df      <- aoi_df %>%
+            dplyr::filter(level == arena.chainSummary$stratumAttributeCategoryLevel) %>%
+            dplyr::select( code, label, area, design_psu, design_ssu)
+        }
         
       } else if ( 'area' %in% names( aoi_df)) {    # flat lookup table with area, no "level"
         if ( anyNA( aoi_df$area)) aoi_df$area[ is.na( aoi_df$area) ] <- 0
         aoi_df$area <- as.numeric( aoi_df$area )
         if ( !all( aoi_df$area == 0)) arena.stratification_area_exists <- TRUE
         
-        if ( 'design_psu' %in% names( aoi_df) & 'design_ssu' %in% names( aoi_df)) {
-          aoi_df <- aoi_df %>%
+        aoi_df <- aoi_df %>%
             select( code, label, area, design_psu, design_ssu)
-        } else if ( 'design_ssu' %in% names( aoi_df)) {
-          aoi_df <- aoi_df %>%
-            select( code, label, area, design_ssu) %>%
-            dplyr::mutate( design_psu = 0)
-        } else if ( 'design_psu' %in% names( aoi_df)) {
-          aoi_df <- aoi_df %>%
-            select( code, label, area, design_psu) %>%
-            dplyr::mutate( design_ssu = 0)
-        } else {
-          aoi_df <- aoi_df %>%
-            select( code, label, area)
-        }
+
       } else if ( arena.analyze$reportingArea > 0 ) {
           aoi_df$area <- 0.0
       } else if ( !arena.post_stratification ) {
@@ -535,7 +549,10 @@ arenaAnalytics <- function(  ) {
                                    list( Total = ~sum(exp_factor_ * .x, na.rm = TRUE), Mean = ~sum(.x, na.rm = TRUE) ),  
                                    .names = "{.col}.{.fn}"), 
                             entity_count_ = n() )                      %>%
-          data.frame()
+          data.frame() 
+          # %>%
+          # in cases where reporting entity contains an categ. attribute and missing base unit ids, there are NAs. These are removed. 
+          # drop_na()
         
       } else { # entity is the base unit
         result_cat[[i]] <- df_entitydata                               %>%
@@ -684,21 +701,22 @@ arenaAnalytics <- function(  ) {
     }
     
     if ( length( result_names_category_2 ) > 0) {
-      dataindex <- length(result_labels) 
-      
-      df_cat_report <- arena.chainSummary$resultVariables                     %>%
-        filter( type == "C" & active == TRUE & name %in% result_names_category_2) %>%
-        select( categoryName ) 
-      
-      for ( i in (1:nrow( df_cat_report))) {
-        result_labels[[ dataindex + i]]  <- 
-          categories[ df_cat_report$categoryName[[i]] ] %>% 
-          as.data.frame()                               %>%
-          select( ends_with('.code'), ends_with('.label'))
+      if (!is.na(result_names_category_2)) {
+        dataindex <- length(result_labels) 
         
-        names(result_labels[[dataindex + i]]) <- c("code","label") 
-      }
-    }
+        df_cat_report <- arena.chainSummary$resultVariables                     %>%
+          filter( type == "C" & active == TRUE & name %in% result_names_category_2) %>%
+          select( categoryName ) 
+        
+        for ( i in (1:nrow( df_cat_report))) {
+          result_labels[[ dataindex + i]]  <- 
+            categories[ df_cat_report$categoryName[[i]] ] %>% 
+            as.data.frame()                               %>%
+            select( ends_with('.code'), ends_with('.label'))
+          
+          names(result_labels[[dataindex + i]]) <- c("code","label") 
+        }
+    }}
     
     names(result_labels) <- c( result_names_category_1, result_names_category_2 )
     
@@ -751,7 +769,7 @@ arenaAnalytics <- function(  ) {
     
     if ( is.null( processMessage )) processMessage = ""
     
-    dimension_names <- unique( c( cat_names_uuid, arena.analyze$dimensions_baseunit))
+    dimension_names <- unique( c( cat_names_uuid, arena.analyze$dimensions))
     if ( arena.stratification )      dimension_names <- unique( c( dimension_names, arena.strat_attribute))
     if ( arena.post_stratification ) dimension_names <- unique( c( dimension_names, arena.chainSummary$postStratificationAttribute ))
     
@@ -827,6 +845,7 @@ arenaAnalytics <- function(  ) {
         dplyr::left_join( df_analysis_weights, by = base_UUID_)
     }
     
+    if ( all( df_analysis_combined$exp_factor_ == 0)) df_analysis_combined$exp_factor_ = df_analysis_combined$weight
     
     # missing stratum code set to "", in order to report these too
     stratum_2_survey <- NULL 
@@ -867,6 +886,12 @@ arenaAnalytics <- function(  ) {
       
       
       if (( all( arena.analyze$dimensions_at_baseunit[ rep_loop]) &  arena.analyze$reportingMethod == '2' ) | ( all( arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+        if (arena.analyze$reportingMethod == '2') {
+          analyze_variables <- arena.analyze$dimensions_baseunit[ rep_loop]
+        } else {
+          analyze_variables <- arena.analyze$dimensions_baseunit
+        }
+        
         design_srvyr_global_mean <-  df_analysis_combined   %>% 
           srvyr::as_survey_design(
             ids       = !!ids_2_survey,
@@ -874,7 +899,7 @@ arenaAnalytics <- function(  ) {
             fpc       = NULL, 
             weights   = !!arena.weights,  
             nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
-            variables = c( arena.analyze$dimensions_baseunit, ends_with('.Mean')) )
+            variables = c( all_of( analyze_variables), ends_with('.Mean')) )
       }
       
       design_srvyr_total <-  df_analysis_combined     %>%
@@ -894,7 +919,7 @@ arenaAnalytics <- function(  ) {
           fpc       = NULL, 
           weights   = NULL, 
           nest      = FALSE,
-          variables = c( arena.analyze$dimensions_baseunit, exp_factor_ ) )
+          variables = c( arena.analyze$dimensions, exp_factor_ ) )
       
     }
     
@@ -957,7 +982,7 @@ arenaAnalytics <- function(  ) {
     
     # AREA 
     out_area <- design_srvyr_area                                   %>%
-      dplyr::group_by( across( arena.analyze$dimensions_baseunit )) %>%    
+      dplyr::group_by( across( arena.analyze$dimensions )) %>%    
       dplyr::summarize( across( exp_factor_ ,      
                                 list( ~survey_total(.) )))          %>%  
       as.data.frame(.)  %>%
@@ -972,11 +997,33 @@ arenaAnalytics <- function(  ) {
       setNames( stringr::str_replace( names(.), ".Mean_2", ".Mean")) 
     
 
-    # compute totals, multiple means by area
-    out_mean_sub  <- out_mean[,  ( length(arena.analyze$dimensions) + 2) : ncol( out_mean)]
-    out_total     <- cbind( out_area, out_area$area * out_mean_sub)
+    # compute totals, multiple the means by areas
+    if (length( arena.analyze$dimensions_baseunit > 0) & arena.analyze$reportingMethod == '1') {
+      out_mean_  <- out_mean  %>% unite(., "col_key_", any_of( arena.analyze$dimensions_baseunit), sep="__", remove=F)
+      out_area_  <- out_area  %>% unite(., "col_key_", any_of( arena.analyze$dimensions_baseunit), sep="__", remove=F)
+      out_mean_  <- out_area_ %>% select(col_key_ , area) %>%
+        left_join( out_mean_ %>% select(col_key_, where( is.numeric), -ends_with("_tally")), by = 'col_key_')
+      
+      out_mean_chr   <- out_mean %>% select( where( is.character))
+      out_mean_num   <- out_mean_ %>% select( where( is.numeric))
+      out_total      <- out_mean_$area * out_mean_num
+      out_total$area <- sqrt(out_total$area)
+      out_total      <- cbind( out_mean_chr, out_total ) 
+      rm( out_mean_num )
+      rm( out_mean_chr )      
+      rm( out_mean_ )
+      rm( out_area_ )
+    } else {
+      out_mean_chr  <- out_mean %>% select( where( is.character))
+      out_mean_num  <- out_mean %>% select( where( is.numeric), -ends_with("_tally"))
+      out_total     <- out_area$area * out_mean_num
+      out_total     <- cbind( out_mean_chr, out_total ) 
+      if (!("area" %in% names( out_total))) out_total$area <- out_area$area  
+      rm( out_mean_num )
+      rm( out_mean_chr )      
+    }
+    
     out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total"))
-    rm( out_mean_sub)
     
     
     # ALL DATA (totals). Total variances are correctly computed here also for stratified sampling
