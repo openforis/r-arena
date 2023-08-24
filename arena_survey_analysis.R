@@ -1128,8 +1128,10 @@ arenaAnalytics <- function(  ) {
     
     
     out_file <- list()
-    out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, "--mean.csv")
-    out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, "--total.csv")
+    
+    out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --mean.csv")
+    out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --total.csv")
+    
     
     tryCatch({if (exists('user_file_path') & exists("out_mean"))  write.csv(out_mean, out_file[[1]],  row.names = F)},
              warning = function( w ) { cat("No output - out_mean") },
