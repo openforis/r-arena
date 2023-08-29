@@ -884,10 +884,10 @@ arenaAnalytics <- function(  ) {
           nest      = FALSE, # If TRUE, relabel cluster ids to enforce nesting within strata
           variables = c( arena.analyze$dimensions, ends_with('.Mean')) )
       
-      
-      if (( all( arena.analyze$dimensions_at_baseunit[ rep_loop]) &  arena.analyze$reportingMethod == '2' ) | ( all( arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+      design_srvyr_global_mean <- NULL
+      if (( length( arena.analyze$dimensions_baseunit) > 0 &  arena.analyze$reportingMethod == '2' ) | ( all( arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
         if (arena.analyze$reportingMethod == '2') {
-          analyze_variables <- arena.analyze$dimensions_baseunit[ rep_loop]
+          analyze_variables <- arena.analyze$dimensions
         } else {
           analyze_variables <- arena.analyze$dimensions_baseunit
         }
@@ -938,7 +938,7 @@ arenaAnalytics <- function(  ) {
                                                   population = ps.weights,
                                                   partial = TRUE) #if TRUE, ignore population strata not present in the sample
       
-      if (( all( arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | ( all( arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+      if (!is.null(design_srvyr_global_mean))  {
         design_srvyr_global_mean <- survey::postStratify( design_srvyr_global_mean, 
                                                           strata = ~postStratificationAttribute,
                                                           population = ps.weights,
@@ -1036,7 +1036,7 @@ arenaAnalytics <- function(  ) {
       as.data.frame(.)  %>%
       setNames( stringr::str_replace( names(.), ".Total_1", ".Total"))
     
-    if (( all( arena.analyze$dimensions_at_baseunit[rep_loop]) &  arena.analyze$reportingMethod == '2' ) | ( all( arena.analyze$dimensions_at_baseunit) &  arena.analyze$reportingMethod == '1'))  {
+    if (!is.null(design_srvyr_global_mean))  {
       out_global_mean <- design_srvyr_global_mean  %>%
         dplyr::summarize( across( c( ends_with(".Mean") ),   
                                   list( ~survey_mean( ., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$analysis$pValue )))) %>% 
