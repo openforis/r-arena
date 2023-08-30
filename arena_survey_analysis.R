@@ -29,7 +29,7 @@ arenaAnalytics <- function(  ) {
   #               Javier Garcia Perez, FAO
   #               
   # Last update:  24.08.2023
-  # Notice: Methods for computing results with "post-stratification" are not yet working. This method will be revised in 2023.
+  # Notice: Methods for computing results with "post-stratification" are not yet working. 
   # 
   #**********************************************************************************************
   
@@ -671,6 +671,12 @@ arenaAnalytics <- function(  ) {
     result_names_category_1 <- intersect( arena.analyze$dimensions, names( get( arena.analyze$entity))) # cat. attributes in input data 
     result_names_category_2 <- setdiff(   arena.analyze$dimensions, names( get( arena.analyze$entity))) # cat. attributes not in input data, but as result attributes
     
+    # join stratification attribute labels
+    if ( arena.stratification ) {
+      if (!(arena.strat_attribute %in% result_names_category_1) & !(arena.strat_attribute %in% result_names_category_2)) {
+        result_names_category_1 <- c( result_names_category_1, arena.strat_attribute )
+      } 
+    }
     
     if (length( result_names_category_1 ) > 0) {
       df_cat_report <- get( arena.analyze$entity) 
@@ -1252,7 +1258,7 @@ arenaAnalytics <- function(  ) {
     # zip all files
     export_filename  <- paste0( user_file_path, 'arena_results.zip')
     files2zip        <- dir( user_file_path, full.names = TRUE )
-    if ( length(files2zip)>0 ) {
+    if ( length(files2zip) > 0 ) {
       zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
       browseURL( export_filename )
     }
