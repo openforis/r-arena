@@ -28,7 +28,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  24.08.2023
+  # Last update:  1.09.2023
   # Notice: Methods for computing results with "post-stratification" are not yet working. 
   # 
   #**********************************************************************************************
@@ -1217,7 +1217,7 @@ arenaAnalytics <- function(  ) {
   # create a folder for files to be exported
   if ( !dir.exists( out_path )) dir.create( out_path, showWarnings = FALSE )
   
-  for ( i in 1:length(result_entities)) {
+  for ( i in 1:length( result_entities )) {
     outfile7              <- paste0( out_path, result_entities[[i]], "_base_unit_results.csv")
     base_unit.results_out <- base_unit.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
     
@@ -1226,11 +1226,20 @@ arenaAnalytics <- function(  ) {
     if ( arena.post_stratification ) dimension_names <- unique( c( dimension_names, arena.chainSummary$postStratificationAttribute ))
     
     
+    # use original label for hier. categorical attribute data, on levels 2-.. 
+    if (length( arena.chainSummary$categoryAttributeAncestors$attribute ) > 0) {
+      category_attribute_ancestors <- intersect( dimension_names, arena.chainSummary$categoryAttributeAncestors$attribute)
+      if ( length( category_attribute_ancestors ) > 0 ) {
+        dimension_names <- setdiff( dimension_names, category_attribute_ancestors)
+        dimension_names <- c( dimension_names, paste0( category_attribute_ancestors, "_label" ))
+      }
+    }
+    
     base_unit.results_out <- df_base_unit %>% select( all_of( base_UUID_), all_of( dimension_names ), weight, exp_factor=exp_factor_) %>%
       dplyr::left_join( base_unit.results_out, by = base_UUID_) %>%
       dplyr::select( -all_of( base_UUID_))
     
-    tryCatch({if (exists('user_file_path')) write.csv(base_unit.results_out, outfile7, row.names = F)},
+    tryCatch({if (exists('user_file_path')) write.csv( base_unit.results_out, outfile7, row.names = F)},
              warning = function( w ) { cat("No output - base unit results") },
              error   = function( e ) { cat("No output - base unit results")
              })
