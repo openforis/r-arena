@@ -28,7 +28,7 @@ arenaAnalytics <- function(  ) {
   # Created by:   Lauri Vesa, FAO
   #               Javier Garcia Perez, FAO
   #               
-  # Last update:  1.09.2023
+  # Last update:  15.10.2023
   # Notice: Methods for computing results with "post-stratification" are not yet working. 
   # 
   #**********************************************************************************************
@@ -71,6 +71,7 @@ arenaAnalytics <- function(  ) {
   options( digits = 10)
   old_sigfig      <- options("pillar.sigfig") # https://github.com/gergness/srvyr/blob/main/vignettes/srvyr-vs-survey.Rmd
   options( "pillar.sigfig" = 5)
+  showStatisticsInResults = TRUE # standard deviation, variance, and conf. intervals are shown in the result tables
   
   # read JSON file 
   chain_summary_json <-  paste(getwd(), 'chain_summary.json', sep = .Platform$file.sep)
@@ -95,6 +96,10 @@ arenaAnalytics <- function(  ) {
       }   
       
       if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
+      if ( toupper( arena.analyze$filter) == "NOSTATISTICS" | toupper( arena.analyze$filter) == "NO STATISTICS" ) {
+        showStatisticsInResults = FALSE
+        arena.analyze$filter = ""
+      }
       if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
       
       if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
@@ -1138,6 +1143,10 @@ arenaAnalytics <- function(  ) {
     out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --mean.csv")
     out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --total.csv")
     
+    # drop out statistical variables from result tables
+    if (showStatisticsInResults == FALSE & exists("out_mean"))  out_mean  <- out_mean  %>% select( -ends_with( c( ".sd", ".var",".area_sd",".ci_lower",".ci_upper")))
+    if (showStatisticsInResults == FALSE & exists("out_total")) out_total <- out_total %>% select( -ends_with( c( ".sd", ".var",".area_sd",".ci_lower",".ci_upper")))
+    
     
     tryCatch({if (exists('user_file_path') & exists("out_mean"))  write.csv(out_mean, out_file[[1]],  row.names = F)},
              warning = function( w ) { cat("No output - out_mean") },
@@ -1177,6 +1186,12 @@ arenaAnalytics <- function(  ) {
   out_global_total <- setNames( out_global_total, stringr::str_replace( names(out_global_total), "_ha.Total_globalAverage",".average"))
   out_global_total <- setNames( out_global_total, stringr::str_replace( names(out_global_total), "_ha.Total", ".total"))
   out_global_total$whole_area_ <- NULL
+  
+
+  # drop out statistical variables from result tables
+  if (showStatisticsInResults == FALSE & exists("out_global_mean"))  out_global_mean  <- out_global_mean  %>% select( -ends_with( c( ".sd", ".var",".area_sd",".ci_lower",".ci_upper")))
+  if (showStatisticsInResults == FALSE & exists("out_global_total")) out_global_total <- out_global_total %>% select( -ends_with( c( ".sd", ".var",".area_sd",".ci_lower",".ci_upper")))
+  
   
   tryCatch({if (exists('user_file_path') & exists("out_global_total")) write.csv( out_global_total, out_file[[3]], row.names = F)},
            warning = function( w ) { cat("No output - out_global_total") },
@@ -1265,7 +1280,7 @@ arenaAnalytics <- function(  ) {
   
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path') ) { 
     # zip all files
-    export_filename  <- paste0( user_file_path, 'arena_results.zip')
+    export_filename  <- paste0( user_file_path, 'arena_results_(', arena.chainSummary$surveyName, ').zip')
     files2zip        <- dir( user_file_path, full.names = TRUE )
     if ( length(files2zip) > 0 ) {
       zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
