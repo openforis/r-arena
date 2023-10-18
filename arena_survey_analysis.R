@@ -45,13 +45,18 @@ arenaAnalytics <- function(  ) {
     if ( nrow( df_data ) == 0 | is.null( arena.chainSummary$categoryAttributeAncestors )) return( df_data )
     if ( length( arena.chainSummary$categoryAttributeAncestors$attribute ) == 0)          return( df_data )
     
-    for ( i in 1 : length( arena.chainSummary$categoryAttributeAncestors$attribute )) {
-      if ( arena.chainSummary$categoryAttributeAncestors$attribute[[i]] %in% names( df_data )) {
-        varname <- arena.chainSummary$categoryAttributeAncestors$attribute[[i]]
-        df_data <- df_data %>%
-          unite( !!varname, any_of( c( arena.chainSummary$categoryAttributeAncestors$ancestors[[i]][1], varname )), sep = "*", remove=FALSE ) 
-      }
-    }
+    categoryNames = unique(arena.chainSummary$categoryAttributeAncestors$categoryName)
+    
+    for (j in 1: length(categoryNames)) {
+      cat_table <- arena.chainSummary$categoryAttributeAncestors %>% filter(categoryName==categoryNames[j]) %>%
+        arrange(categoryLevel)
+      for ( i in 1 : length( cat_table$attribute )) {
+        if ( cat_table$attribute[[i]] %in% names( df_data )) {
+          varname <- cat_table$attribute[[i]]
+          df_data <- df_data %>%
+            unite( !!varname, any_of( c( cat_table$ancestors[[i]][i], varname )), sep = "*", remove=FALSE ) 
+        }
+      }}
     return( df_data )
   } # conversion_HierarchicalCodeAttributes
   
