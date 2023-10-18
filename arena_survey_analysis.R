@@ -49,7 +49,7 @@ arenaAnalytics <- function(  ) {
       if ( arena.chainSummary$categoryAttributeAncestors$attribute[[i]] %in% names( df_data )) {
         varname <- arena.chainSummary$categoryAttributeAncestors$attribute[[i]]
         df_data <- df_data %>%
-          unite( !!varname, any_of( c( arena.chainSummary$categoryAttributeAncestors$ancestors[[i]][i], varname )), sep = "*", remove=FALSE ) 
+          unite( !!varname, any_of( c( arena.chainSummary$categoryAttributeAncestors$ancestors[[i]][1], varname )), sep = "*", remove=FALSE ) 
       }
     }
     return( df_data )
