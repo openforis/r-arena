@@ -1015,30 +1015,13 @@ arenaAnalytics <- function(  ) {
     
 
     # compute totals, multiple the means by areas
-    if (length( arena.analyze$dimensions_baseunit > 0) & arena.analyze$reportingMethod == '1') {
-      out_mean_  <- out_mean  %>% unite(., "col_key_", any_of( arena.analyze$dimensions_baseunit), sep="__", remove=F)
-      out_area_  <- out_area  %>% unite(., "col_key_", any_of( arena.analyze$dimensions_baseunit), sep="__", remove=F)
-      out_mean_  <- out_area_ %>% select(col_key_ , area) %>%
-        left_join( out_mean_ %>% select(col_key_, where( is.numeric), -ends_with("_tally")), by = 'col_key_')
-      
-      out_mean_chr   <- out_mean %>% select( where( is.character))
-      out_mean_num   <- out_mean_ %>% select( where( is.numeric))
-      out_total      <- out_mean_$area * out_mean_num
-      out_total$area <- sqrt(out_total$area)
-      out_total      <- cbind( out_mean_chr, out_total ) 
-      rm( out_mean_num )
-      rm( out_mean_chr )      
-      rm( out_mean_ )
-      rm( out_area_ )
-    } else {
-      out_mean_chr  <- out_mean %>% select( where( is.character))
-      out_mean_num  <- out_mean %>% select( where( is.numeric), -ends_with("_tally"))
-      out_total     <- out_area$area * out_mean_num
-      out_total     <- cbind( out_mean_chr, out_total ) 
-      if (!("area" %in% names( out_total))) out_total$area <- out_area$area  
-      rm( out_mean_num )
-      rm( out_mean_chr )      
-    }
+    out_mean_chr   <- out_mean %>% select( where( is.character))
+    out_mean_num   <- out_mean %>% select( where( is.numeric), ends_with("_tally"))
+    out_total      <- out_area$area * out_mean_num
+    
+    out_total      <- cbind( out_mean_chr, out_total ) 
+    if (!("area" %in% names( out_total))) out_total$area <- out_area$area  
+    rm( out_mean_num ); rm( out_mean_chr )      
     
     out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total"))
     
