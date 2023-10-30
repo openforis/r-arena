@@ -678,8 +678,9 @@ arenaAnalytics <- function(  ) {
     
     # get labels to the categorical result variables, [1]: input attribute, [2]: result attribute 
     result_labels           <- list() 
-    result_names_category_1 <- intersect( arena.analyze$dimensions, names( get( arena.analyze$entity))) # cat. attributes in input data 
-    result_names_category_2 <- setdiff(   arena.analyze$dimensions, names( get( arena.analyze$entity))) # cat. attributes not in input data, but as result attributes
+    
+    result_names_category_1 <- setdiff(   arena.analyze$dimensions, arena.chainSummary$resultVariables$name) # cat. attributes in input data 
+    result_names_category_2 <- intersect( arena.analyze$dimensions, arena.chainSummary$resultVariables$name) # cat. attributes as result attributes
     
     # join stratification attribute labels
     if ( arena.stratification ) {
@@ -997,19 +998,19 @@ arenaAnalytics <- function(  ) {
     }
     
     # AREA 
-    out_area <- design_srvyr_area                                   %>%
-      dplyr::group_by( across( arena.analyze$dimensions )) %>%    
+    out_area <- design_srvyr_area                           %>%
+      dplyr::group_by( across( arena.analyze$dimensions ))  %>%    
       dplyr::summarize( across( exp_factor_ ,      
-                                list( ~survey_total(.) )))          %>%  
-      as.data.frame(.)  %>%
+                                list( ~survey_total(.) )))  %>%  
+      as.data.frame(.)                                      %>%
       rename( area = exp_factor__1, area_sd = exp_factor__1_se)
     
     # MEANS (per hectares) for selected categories
-    out_mean  <- design_srvyr_mean             %>%
+    out_mean  <- design_srvyr_mean                          %>%
       dplyr::group_by( across( arena.analyze$dimensions ))  %>%     
       dplyr::summarize( across( ends_with(".Mean") ,     
                                 list( tally = ~sum( !is.na(.)), ~survey_mean( ., na.rm = FALSE, vartype = c("se", "var", "ci"), proportion = FALSE, level=arena.chainSummary$analysis$pValue )))) %>% 
-      as.data.frame(.)  %>%
+      as.data.frame(.)                                      %>%
       setNames( stringr::str_replace( names(.), ".Mean_2", ".Mean")) 
     
 
