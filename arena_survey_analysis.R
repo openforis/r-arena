@@ -109,7 +109,7 @@ arenaAnalytics <- function(  ) {
       
       if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
         return( "Arena Analytics: No entity to report" )
-      } else if ( is.null( arena.analyze$dimensions ) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ){
+      } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
         return( "Arena Analytics: No dimension to report" )
       } else {
         arena.analyze$dimensions_datatypes   <- c()
