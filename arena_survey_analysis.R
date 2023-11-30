@@ -34,11 +34,15 @@
     # dimensions_plot  <- schemaSummary %>% filter(parentEntity=="plot" & type=="code" & multiple=="false") 
     # dimensions_names <- dimensions_plot$name
     # dimensions_keys  <- c("forest_category", "province", "forest_area_name") 
+    # # for RStudio Server, set this argument:
+    # server_report_step <- ""
     # 
     # dimension_list <- list()
     # for (i in 1:length(dimensions_names)) {
+    #   if (i == length(dimensions_names)) server_report_step <- "last"
+    #   
     #   dimension_list[[i]]    <- c( dimensions_keys, dimensions_names[i] )
-    #   arena_process_response <- arenaAnalytics( dimension_list[[i]] )
+    #   arena_process_response <- arenaAnalytics( dimension_list[[i]], server_report_step )
     #   cat("\n")
     #   print( paste(i, "-", arena_process_response ))
     #   cat("\n")
@@ -153,7 +157,7 @@ arenaReadJSON <- function( dimension_list_arg ) {
 
 #########################################################################
 
-arenaAnalytics <- function( dimension_list_arg ) {
+arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   
   
   # set  options, see more at https://r-survey.r-forge.r-project.org/survey/html/surveyoptions.html
@@ -167,6 +171,7 @@ arenaAnalytics <- function( dimension_list_arg ) {
   
   # if argument missing, set predefined dimension list to NULL. Dimensions are read from JSON (=arena.chainSummary) 
   if (is_missing( dimension_list_arg )) dimension_list_arg <- NULL
+  if (is_missing( server_report_step )) server_report_step <- "last"
   
   tryCatch( usePackage('tidyr'),
             error = function(e){ library('tidyr')
@@ -736,9 +741,9 @@ arenaAnalytics <- function( dimension_list_arg ) {
   rm(f)
   
   out_path  <- "dimensions/"
-  if ( dir.exists( paste0( user_file_path, out_path ))) unlink(paste0(user_file_path, out_path), recursive = TRUE)
+  # if ( dir.exists( paste0( user_file_path, out_path ))) unlink(paste0(user_file_path, out_path), recursive = TRUE)
   dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
-  
+
   
   for ( rep_loop in (1 : arena.reportingLoops )) {
     if ( arena.analyze$reportingMethod == '2' ) {
@@ -1323,14 +1328,14 @@ arenaAnalytics <- function( dimension_list_arg ) {
     }
     
   }
-  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path') ) { 
+  if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path')  & server_report_step == "last") { 
     # zip all files
-    export_filename  <- paste0( user_file_path, 'arena_results_(', arena.chainSummary$surveyName, ').zip')
-    files2zip        <- dir( user_file_path, full.names = TRUE )
-    if ( length(files2zip) > 0 ) {
-      zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
-      browseURL( export_filename )
-    }
+      export_filename  <- paste0( user_file_path, 'arena_results_(', arena.chainSummary$surveyName, ').zip')
+      files2zip        <- dir( user_file_path, full.names = TRUE )
+      if ( length(files2zip) > 0 ) {
+        zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
+        browseURL( export_filename )
+      }
   }
   
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
