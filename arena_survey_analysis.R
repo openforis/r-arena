@@ -1304,7 +1304,9 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   
   for ( i in 1:length( result_entities )) {
     outfile7              <- paste0( out_path, result_entities[[i]], "_base_unit_results.csv")
-    base_unit.results_out <- base_unit.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
+    base_unit.results_out <- base_unit.results[i] %>% as.data.frame() %>% 
+      select(-ends_with(".Total")) %>% 
+      setNames( stringr::str_replace( names(.), ".Mean", "")) 
     
     dimension_names <- arena.chainSummary$baseUnitEntityKeys
     if ( arena.analyze$stratification )      dimension_names <- unique( c( dimension_names, arena.analyze$strat_attribute))
