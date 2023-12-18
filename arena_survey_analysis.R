@@ -17,7 +17,7 @@
 # Created by:   Lauri Vesa, FAO
 #               Javier Garcia Perez, FAO
 #               
-# Last update:  30.11.2023
+# Last update:  14.12.2023
 # Notice: Method for computing results with "post-stratification" is not yet working. 
 # 
 ########################################################################
@@ -230,6 +230,26 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   # SAMPLING DESIGN EXISTS. ###
   # Compute expansion factors, sum of area-based variables & weights up to base unit level, and non-response bias corrections
   if ( arena.chainSummary$samplingDesign ) {
+    
+    # define a folder for output files
+    if ( !exists('user_file_path')) user_file_path <- './user_output/'
+    # create a folder for files to be exported
+    if ( !dir.exists( user_file_path )) dir.create( user_file_path, showWarnings = FALSE )
+    
+    
+    # get all files in the main output folder
+    f <- list.files(user_file_path, full.names = TRUE, recursive = FALSE)
+    f <- f[!file.info(f)$isdir]
+    
+    # remove the files in the main output folder
+    if (length(f)) file.remove(f)
+    rm(f)
+    
+    out_path  <- "OLAP/"
+    dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
+    out_path  <- "dimensions/"
+    dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
+    
     
     # get base unit data into a data frame
     df_base_unit                  <- get( arena.chainSummary$baseUnit )
@@ -658,7 +678,25 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       
       rm( temp_list_variables )
       
-      ## PART 2. compute sum of per hectare results at the base unit level for each result variable
+      ## PART 2a. get results at the base unit level for each result variable for OLAP
+      keys_to_add <- which( !(arena.chainSummary$baseUnitEntityKeys %in% names(result_cat[[i]])))
+      if (length(keys_to_add) > 0) {
+        join_col <- df_base_unit %>% select(all_of(base_UUID_), all_of(arena.chainSummary$baseUnitEntityKeys[keys_to_add])) %>%
+          dplyr::mutate( across( where( is.numeric), ~as.character(.))) %>% distinct()
+        
+        out_file_data <- result_cat[[i]] %>% left_join(join_col, by = base_UUID_) 
+      } else {
+        out_file_data <- result_cat[[i]]
+      }
+      out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
+      tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
+               warning = function( w ) { cat("No output - OLAP data") },
+               error   = function( e ) { cat("No output - OLAP data")
+               })
+      rm( keys_to_add ); rm( out_file_data ); rm( out_file_name )
+      
+      
+      ## PART 2b. compute sum of per hectare results at the base unit level for each result variable
       base_unit.results[[i]] <- df_entitydata %>%
         # Add expansion factor for all result entities
         dplyr::right_join(( df_base_unit %>% select( all_of( base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
@@ -680,7 +718,6 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
         df_entitydata$weight = NULL
         cluster.results[[i]] <- df_entitydata %>%
           # Add expansion factor for all result entities
-          #        dplyr::left_join( cluster.weights, by = cluster_UUID_) %>%
           dplyr::right_join(( df_base_unit %>% select( all_of( base_UUID_), weight, exp_factor_)), by = base_UUID_) %>%
           dplyr::group_by( across( all_of( cluster_UUID_ )))                                                        %>%
           dplyr::summarize( across(.cols= all_of( resultVariables ),
@@ -726,25 +763,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   if ( arena.analyze$reportingMethod == '1' ) arena.reportingLoops = 1
   if ( arena.analyze$reportingMethod == '2' ) arena.reportingLoops = length( arena.analyze$dimensions )
   
-  # define a folder for output files
-  if ( !exists('user_file_path')) user_file_path <- './user_output/'
-  # create a folder for files to be exported
-  if ( !dir.exists( user_file_path )) dir.create( user_file_path, showWarnings = FALSE )
-  
-  
-  # get all files in the main output folder
-  f <- list.files(user_file_path, full.names = TRUE, recursive = FALSE)
-  f <- f[!file.info(f)$isdir]
-  
-  # remove the files in the main output folder
-  if (length(f)) file.remove(f)
-  rm(f)
-  
-  out_path  <- "dimensions/"
-  # if ( dir.exists( paste0( user_file_path, out_path ))) unlink(paste0(user_file_path, out_path), recursive = TRUE)
-  dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
 
-  
   for ( rep_loop in (1 : arena.reportingLoops )) {
     if ( arena.analyze$reportingMethod == '2' ) {
       arena.analyze$dimensions <- arena.analyze$dimensions_input[rep_loop]
@@ -1326,7 +1345,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
                error   = function( e ) { cat("No output - cluster results")
                })
     }
-    
+  
   }
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path')  & server_report_step == "last") { 
     # zip all files
