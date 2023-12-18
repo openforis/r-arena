@@ -1121,7 +1121,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if (!("area" %in% names( out_total))) out_total$area <- out_area$area  
     rm( out_mean_num ); rm( out_mean_chr )      
     
-    out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total")) %>% select( -ends_with(".total_tally")
+    out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total")) %>% select( -ends_with(".total_tally"))
     
     
     # ALL DATA (totals). Total variances are correctly computed here also for stratified sampling
