@@ -245,8 +245,6 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if (length(f)) file.remove(f)
     rm(f)
     
-    out_path  <- "OLAP/"
-    dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
     out_path  <- "dimensions/"
     dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
     
@@ -679,22 +677,26 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       rm( temp_list_variables )
       
       ## PART 2a. get results at the base unit level for each result variable for OLAP
-      keys_to_add <- which( !(arena.chainSummary$baseUnitEntityKeys %in% names(result_cat[[i]])))
-      if (length(keys_to_add) > 0) {
-        join_col <- df_base_unit %>% select(all_of(base_UUID_), all_of(arena.chainSummary$baseUnitEntityKeys[keys_to_add])) %>%
-          dplyr::mutate( across( where( is.numeric), ~as.character(.))) %>% distinct()
+      if (result_entities[[i]] != arena.chainSummary$baseUnit) {
+          out_path  <- "OLAP/"
+          dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
         
-        out_file_data <- result_cat[[i]] %>% left_join(join_col, by = base_UUID_) 
-      } else {
-        out_file_data <- result_cat[[i]]
-      }
-      out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
-      tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
-               warning = function( w ) { cat("No output - OLAP data") },
-               error   = function( e ) { cat("No output - OLAP data")
-               })
-      rm( keys_to_add ); rm( out_file_data ); rm( out_file_name )
-      
+          keys_to_add <- which( !(arena.chainSummary$baseUnitEntityKeys %in% names(result_cat[[i]])))
+          if (length(keys_to_add) > 0) {
+            join_col <- df_base_unit %>% select(all_of(base_UUID_), all_of(arena.chainSummary$baseUnitEntityKeys[keys_to_add])) %>%
+              dplyr::mutate( across( where( is.numeric), ~as.character(.))) %>% distinct()
+            
+            out_file_data <- result_cat[[i]] %>% left_join(join_col, by = base_UUID_) 
+          } else {
+            out_file_data <- result_cat[[i]]
+          }
+          out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
+          tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
+                   warning = function( w ) { cat("No output - OLAP data") },
+                   error   = function( e ) { cat("No output - OLAP data")
+                   })
+          rm( keys_to_add ); rm( out_file_data ); rm( out_file_name )
+      }      
       
       ## PART 2b. compute sum of per hectare results at the base unit level for each result variable
       base_unit.results[[i]] <- df_entitydata %>%
@@ -1119,7 +1121,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if (!("area" %in% names( out_total))) out_total$area <- out_area$area  
     rm( out_mean_num ); rm( out_mean_chr )      
     
-    out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total"))
+    out_total     <- out_total %>% setNames( stringr::str_replace( names(.), ".Mean", ".Total")) %>% select( -ends_with(".total_tally")
     
     
     # ALL DATA (totals). Total variances are correctly computed here also for stratified sampling
@@ -1208,7 +1210,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     out_total <- setNames( out_total, stringr::str_replace( names(out_total), "_ha.Total", ".total" ))
     
     
-    out_file <- list()
+    out_file  <- list()
+    out_path  <- "dimensions/"
     
     out_file[[1]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --mean.csv")
     out_file[[2]] <- paste0(user_file_path, out_path, arena.analyze$entity, " (", paste( arena.analyze$dimensions, collapse = " - "), ") --total.csv")
