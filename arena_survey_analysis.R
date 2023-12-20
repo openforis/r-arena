@@ -1152,16 +1152,18 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       # SRS: ALL DATA (totals) 
       jdesign       <- update( design_srvyr_SRS_total, whole_area_ = 1 )
       out_SRS_total <- jdesign                                      %>%
-        dplyr::group_by( whole_area_ )                                     %>%         
+        dplyr::group_by( whole_area_ )                              %>%         
         dplyr::summarize( across( c( ends_with(".Total") ),      
-                                  list( ~survey_total( ., vartype = c("var") ))))  %>%  
+               list( ~survey_total( ., vartype = c("var") ))))      %>%  
         as.data.frame(.) 
       
       var_global_total <- out_global_total %>% select( ends_with("_var")) 
       var_SRS_total    <- out_SRS_total    %>% select( ends_with("_var"))
       var_efficiency   <- var_SRS_total / var_global_total 
       
-      names(var_efficiency) = gsub(pattern = "_ha.Total_var", replacement = "", x = names(var_efficiency))
+      var_efficiency   <- var_efficiency %>% setNames( stringr::str_replace( names(.), "_ha.Total_var", "")) %>%
+           setNames( stringr::str_replace( names(.), "_ha.Total_1_var", ""))
+      
       rm(var_global_total); rm(var_SRS_total)
       
     }
