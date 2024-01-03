@@ -75,70 +75,68 @@ arenaReadJSON <- function( dimension_list_arg ) {
   # check analysis parameters, if any
   arena.analyze   <- list(entity = '', dimensions = '', filter = "", reportingMethod = '2')
   
-  if ( !is.null( arena.chainSummary$analysis )) {
-    if ( !is.null( arena.chainSummary$analysis$entity) & !is.null( arena.chainSummary$analysis$dimensions )) {
-      arena.analyze$entity       <- trimws( arena.chainSummary$analysis$entity )
-      if (!is.null(dimension_list_arg)) {
-        arena.analyze$dimensions   <- trimws( dimension_list_arg ) 
-      } else {
-        arena.analyze$dimensions   <- trimws( arena.chainSummary$analysis$dimensions )
-      }
+  if ( is.null( arena.chainSummary$analysis ))    return( "Arena Analytics: No entity to report" )
+  if ( is.null( arena.chainSummary$analysis$entity) | is.null( arena.chainSummary$analysis$dimensions )) return( "Arena Analytics: No entity or dimensions to report" )
+  if ( arena.chainSummary$analysis$entity == "" ) return( "Arena Analytics: No entity to report" )
+  
+    arena.analyze$entity       <- trimws( arena.chainSummary$analysis$entity )
+    if (!is.null(dimension_list_arg)) {
+      arena.analyze$dimensions   <- trimws( dimension_list_arg ) 
+    } else {
+      arena.analyze$dimensions   <- trimws( arena.chainSummary$analysis$dimensions )
+    }
+    
+    # drop out totally blank (NA) columns
+    drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
+    # assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+    # assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+    if ( length( drop_names) > 0) {
+      arena.chainSummary$analysis$dimensions <- arena.chainSummary$analysis$dimensions[!arena.chainSummary$analysis$dimensions %in% drop_names ]
+      arena.analyze$dimensions               <- arena.analyze$dimensions[ !arena.analyze$dimensions %in% drop_names ]
+    }   
+    
+    arena.analyze$showStatisticsInResults <- TRUE # standard deviation, variance, and conf. intervals are shown in the result tables
+    
+    if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
+    if ( toupper( arena.analyze$filter) == "NOSTATISTICS" | toupper( arena.analyze$filter) == "NO STATISTICS" ) {
+      arena.analyze$showStatisticsInResults = FALSE
+      arena.analyze$filter = ""
+    }
+    if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
+    
+    if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
+      return( "Arena Analytics: No entity to report" )
+    } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
+      return( "Arena Analytics: No dimension to report" )
+    } else {
+      arena.analyze$dimensions_datatypes   <- c()
+      arena.analyze$dimensions_at_baseunit <- c()
       
       # drop out totally blank (NA) columns
       drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
-      # assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
-      # assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
-      if ( length( drop_names) > 0) {
-        arena.chainSummary$analysis$dimensions <- arena.chainSummary$analysis$dimensions[!arena.chainSummary$analysis$dimensions %in% drop_names ]
-        arena.analyze$dimensions               <- arena.analyze$dimensions[ !arena.analyze$dimensions %in% drop_names ]
-      }   
+      assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+      assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+      arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
       
-      arena.analyze$showStatisticsInResults <- TRUE # standard deviation, variance, and conf. intervals are shown in the result tables
+      entity_datatype <- lapply(get( arena.analyze$entity), class)
       
-      if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
-      if ( toupper( arena.analyze$filter) == "NOSTATISTICS" | toupper( arena.analyze$filter) == "NO STATISTICS" ) {
-        arena.analyze$showStatisticsInResults = FALSE
-        arena.analyze$filter = ""
+      for ( j in (1 : length( arena.analyze$dimensions ))){
+        arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
+                                                             as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
+        arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
+        arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
       }
-      if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
-      
-      if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-        return( "Arena Analytics: No entity to report" )
-      } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-        return( "Arena Analytics: No dimension to report" )
-      } else {
-        arena.analyze$dimensions_datatypes   <- c()
-        arena.analyze$dimensions_at_baseunit <- c()
-        
-        # drop out totally blank (NA) columns
-        drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
-        assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
-        assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
-        arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
-        
-        entity_datatype <- lapply(get( arena.analyze$entity), class)
-        
-        for ( j in (1 : length( arena.analyze$dimensions ))){
-          arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
-                                                               as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
-          arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
-          arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
-        }
-        arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
-        arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
-        arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
-        # change comma to dot (if used as decimal separator)
-        if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
-        arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
-        arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
-        rm(entity_datatype)
-      }
-    } else {
-      return( "Arena Analytics: No entity or dimensions to report" )
+      arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
+      arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
+      arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
+      # change comma to dot (if used as decimal separator)
+      if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
+      arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
+      arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
+      rm(entity_datatype)
     }
-  } else {
-    return( "Arena Analytics: No entity to report" )
-  }   
+    
+   
   
   # Default values for missing data: 
   # a) no base unit -> no sampling design 
