@@ -3,10 +3,8 @@
 # Edited by: Anibal Cuchietti and Lauri Vesa, FAO
 # Last edited: 13 March, 2024
 #
-# To properly estimate the proportion of estimators together with another post stratification variable (as ownership, stand origin, etc.) an 
-# extra estimate defined as the ratio of the corresponding two-phase estimated area needs to be produced in order to be able to present the improved two-phase 
-# estimates of total (forest) area partitioned by the used post stratification variable with the corresponding statistical estimates of shares of the variable 
-# categories on total (forest) area. 
+# To properly estimate the proportion of an attribute together with another post stratification variable 
+# (such as ownership, stand origin, etc.) an extra estimate is defined as the ratio of the corresponding two-phase estimated areas.
 # 
 
 fn_two_phase_ratio_estimator <- function( nominator, denominator ) {
