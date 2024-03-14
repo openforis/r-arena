@@ -72,10 +72,6 @@ arenaReadJSON <- function( dimension_list_arg ) {
   chain_summary_json <-  paste(getwd(), 'chain_summary.json', sep = .Platform$file.sep)
   if ( file.exists( chain_summary_json ))  arena.chainSummary <- jsonlite::fromJSON( chain_summary_json )
   
-  # Two-phase sampling not yet implemented! 
-  if (arena.chainSummary$samplingStrategy == 5) return( "Two-phase sampling not yet implemented in Arena! (In progress..)" )
-  
-  
   # check analysis parameters, if any
   arena.analyze   <- list(entity = '', dimensions = '', filter = "", reportingMethod = '2')
   
@@ -160,6 +156,9 @@ arenaReadJSON <- function( dimension_list_arg ) {
 #########################################################################
 
 arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
+  
+  # Two-phase sampling not yet implemented! 
+  if (arena.chainSummary$samplingStrategy == 5) return( "Two-phase sampling not yet implemented in Arena! (In progress..)" )
   
   
   # set  options, see more at https://r-survey.r-forge.r-project.org/survey/html/surveyoptions.html
