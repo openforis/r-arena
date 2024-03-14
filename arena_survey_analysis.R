@@ -17,7 +17,7 @@
 # Created by:   Lauri Vesa, FAO
 #               Javier Garcia Perez, FAO
 #               
-# Last update:  14.12.2023
+# Last update:  14.3.2024
 # Notice: Method for computing results with "post-stratification" is not yet working. 
 # 
 ########################################################################
@@ -71,6 +71,10 @@ arenaReadJSON <- function( dimension_list_arg ) {
   # read JSON file 
   chain_summary_json <-  paste(getwd(), 'chain_summary.json', sep = .Platform$file.sep)
   if ( file.exists( chain_summary_json ))  arena.chainSummary <- jsonlite::fromJSON( chain_summary_json )
+  
+  # Two-phase sampling not yet implemented! 
+  if (arena.chainSummary$samplingStrategy == 5) return( "Two-phase sampling not yet implemented in Arena! (In progress..)" )
+  
   
   # check analysis parameters, if any
   arena.analyze   <- list(entity = '', dimensions = '', filter = "", reportingMethod = '2')
@@ -585,7 +589,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       # add categorical result variables
       # 1) search parents' names
       parent_names               <- df_entitydata %>% 
-        dplyr::select(ends_with("_uuid"), -ends_with("_file_uuid"), -record_uuid, -paste0(result_entities[[i]], "_uuid")) %>% 
+        dplyr::select(ends_with("_uuid"), -ends_with("_file_uuid"), -record_uuid, -record_owner_uuid, -paste0(result_entities[[i]], "_uuid")) %>% 
         names %>%
         stringr::str_sub(., 0,-6)
       
