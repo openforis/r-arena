@@ -867,7 +867,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
         ps.weights <- df_base_unit                                                    %>%
           dplyr::group_by( across( arena.chainSummary$postStratificationAttribute ))  %>%
           dplyr::summarize( Freq = sum( exp_factor_))                                 %>%              
-          data.frame()
+          data.frame() 
         
         names(ps.weights)[[1]] <- "postStratificationAttribute" 
       }
