@@ -105,51 +105,53 @@ arenaReadJSON <- function( dimension_list_arg ) {
     if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
     
     if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-      return( "Arena Analytics: No entity to report" )
+        return( "Arena Analytics: No entity to report" )
+    } else if (arena.chainSummary$samplingStrategy == 5 & (is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0)) ) {
+      # 2-phase sampling can be used to compute 'Common categories' area estimates with no dimensions 
+        arena.analyze$dimensions <- ""
     } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-      return( "Arena Analytics: No dimension to report" )
+        return( "Arena Analytics: No dimension to report" )
     } else {
-      arena.analyze$dimensions_datatypes   <- c()
-      arena.analyze$dimensions_at_baseunit <- c()
-      
-      # drop out totally blank (NA) columns
-      drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
-      assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
-      assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
-      arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
-      
-      entity_datatype <- lapply(get( arena.analyze$entity), class)
-      
-      for ( j in (1 : length( arena.analyze$dimensions ))){
-        arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
-                                                             as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
-        arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
-        arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
-      }
-      arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
-      arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
-      arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
-      # change comma to dot (if used as decimal separator)
-      if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
-      arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
-      arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
-      rm(entity_datatype)
+        arena.analyze$dimensions_datatypes   <- c()
+        arena.analyze$dimensions_at_baseunit <- c()
+        
+        # drop out totally blank (NA) columns
+        drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
+        assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+        assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+        arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
+        
+        entity_datatype <- lapply(get( arena.analyze$entity), class)
+        
+        for ( j in (1 : length( arena.analyze$dimensions ))){
+          arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
+                                                               as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
+          arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
+          arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
+        }
+        arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
+        arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
+        arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
+        # change comma to dot (if used as decimal separator)
+        if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
+        arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
+        arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
+        rm(entity_datatype)
     }
     
    
-  
-  # Default values for missing data: 
-  # a) no base unit -> no sampling design 
-  if ( arena.chainSummary$baseUnit == "" )              arena.chainSummary$samplingDesign    <- FALSE
-  # b) stratum attribute is missing
-  if ( is.null( arena.chainSummary$stratumAttribute ))  arena.chainSummary$stratumAttribute  <- ""
-  # nonresponse bias correction is missing
-  if ( is.null( arena.chainSummary$analysis$nonResponseBiasCorrection )) arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
-  
-  arena.analyze$post_stratification        <- FALSE
-  arena.analyze$stratification_area_exists <- FALSE
-  
-  return( list(arena.analyze, arena.chainSummary) )
+    # Default values for missing data: 
+    # a) no base unit -> no sampling design 
+    if ( arena.chainSummary$baseUnit == "" )              arena.chainSummary$samplingDesign    <- FALSE
+    # b) stratum attribute is missing
+    if ( is.null( arena.chainSummary$stratumAttribute ))  arena.chainSummary$stratumAttribute  <- ""
+    # nonresponse bias correction is missing
+    if ( is.null( arena.chainSummary$analysis$nonResponseBiasCorrection )) arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
+    
+    arena.analyze$post_stratification        <- FALSE
+    arena.analyze$stratification_area_exists <- FALSE
+    
+    return( list(arena.analyze, arena.chainSummary) )
 } # arenaReadJSON
 
 
