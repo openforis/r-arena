@@ -307,7 +307,9 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     
     if ( arena.analyze$stratification ) {
-      aoi_df        <- as.data.frame( categories[[ arena.chainSummary$stratumAttributeCategory ]])
+      aoi_df        <- as.data.frame( categories[[ arena.chainSummary$stratumAttributeCategory ]]) %>%
+        mutate(code = as.character(code), code_joint = as.character(code_joint) )
+      
       if ( arena.chainSummary$analysis$nonResponseBiasCorrection ) {
         if (  'design_psu' %in% names( aoi_df) & !'design_ssu' %in% names( aoi_df)) aoi_df$design_ssu <- 0
         if ( !'design_psu' %in% names( aoi_df) &  'design_ssu' %in% names( aoi_df)) aoi_df$design_psu <- 0
@@ -833,6 +835,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
             select( ends_with('.code'), ends_with('.label'))
           
           names(result_labels[[dataindex + i]]) <- c("code","label") 
+          result_labels[[dataindex + i]] <- %>%
+            mutate(code = as.character(code))
         }
       }}
     
