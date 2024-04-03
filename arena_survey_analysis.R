@@ -835,7 +835,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
             select( ends_with('.code'), ends_with('.label'))
           
           names(result_labels[[dataindex + i]]) <- c("code","label") 
-          result_labels[[dataindex + i]] <- %>%
+          result_labels[[dataindex + i]] <- result_labels[[dataindex + i]] %>%
             mutate(code = as.character(code))
         }
       }}
