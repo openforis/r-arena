@@ -601,7 +601,9 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       if (length(parent_names) > 0) {
         res_cat                    <- arena.chainSummary$resultVariables %>% 
           dplyr::filter( type == "C" & active == TRUE & entity %in% parent_names)   %>% 
-          dplyr::select( entity, name) 
+          dplyr::select( entity, name) %>%
+          dplyr::filter( !name %in% names(df_entitydata))
+        
         if ( nrow( res_cat) > 0) {
           for (j in (1:nrow(res_cat) )) {
             df_join       <- get( res_cat$entity[j]) %>% select( paste0( res_cat$entity[j], "_uuid"), res_cat$name[j] ) 
