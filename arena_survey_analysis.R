@@ -13,11 +13,13 @@
 # Note: reported result entities' names we can get as follows: names(result_cat)
 #
 # Required R packages (with dependencies): dplyr, stringr, srvyr, survey, rlang
+#              and for two-phase sampling: tidyverse, forestinventory
 #
 # Created by:   Lauri Vesa, FAO
 #               Javier Garcia Perez, FAO
+#               Anibal Cuchietti, FAO (Two-phase sampling for area estimation)
 #               
-# Last update:  14.3.2024
+# Last update:  2.5.2024
 # Notice: Method for computing results with "post-stratification" is not yet working. 
 # 
 ########################################################################
@@ -159,9 +161,6 @@ arenaReadJSON <- function( dimension_list_arg ) {
 
 arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   
-  # Two-phase sampling not yet implemented! 
-  if (arena.chainSummary$samplingStrategy == 5) return( "Two-phase sampling not yet implemented in Arena! (In progress..)" )
-  
   
   # set  options, see more at https://r-survey.r-forge.r-project.org/survey/html/surveyoptions.html
   #options(dplyr.summarise.inform      = FALSE)
@@ -171,6 +170,15 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   options( digits = 10)
   old_sigfig      <- options("pillar.sigfig") # https://github.com/gergness/srvyr/blob/main/vignettes/srvyr-vs-survey.Rmd
   options( "pillar.sigfig" = 5)
+  
+
+  # Two-phase sampling. Only for area estimation in this version. 
+  if (arena.chainSummary$samplingStrategy == 5) {
+    source( "https://raw.githubusercontent.com/openforis/r-arena/master/two_phase_sampling_area_estimation.R")
+    arenaTwoPhaseSampling_area_estimates()
+    return( "Two-phase sampling: area estimation completed!" )
+  }  
+  
   
   # if argument missing, set predefined dimension list to NULL. Dimensions are read from JSON (=arena.chainSummary) 
   if (is_missing( dimension_list_arg )) dimension_list_arg <- NULL
