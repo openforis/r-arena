@@ -259,11 +259,11 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   # Creation of the dummy variables for each land use  
   # Data frame field plots and selected attributes only 
   if (arena.chainSummary$stratumAttribute != "") {
-    print( paste("Domain/Stratum column in 1st phase table: ", DomainAttribute_phase1))
-    print( paste("Domain/Stratum column in 2nd phase table: ", arena.chainSummary$stratumAttribute))
-    print( "Only area estimates can be currently computed.")
-    print( "Processing..")
-    print("")
+    cat( paste("Domain/Stratum column in 1st phase table: ", DomainAttribute_phase1), "\n")
+    cat( paste("Domain/Stratum column in 2nd phase table: ", arena.chainSummary$stratumAttribute), "\n")
+    cat( "Only area estimates can be currently computed.", "\n")
+    cat( "Processing..")
+    cat( "\n", "\n")
   }
   
   DomainClasses        <- ""
