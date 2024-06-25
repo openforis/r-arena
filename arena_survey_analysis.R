@@ -19,7 +19,7 @@
 #               Javier Garcia Perez, FAO
 #               Anibal Cuchietti, FAO (Two-phase sampling for area estimation)
 #               
-# Last update:  2.5.2024
+# Last update:  25.6.2024
 # Notice: Method for computing results with "post-stratification" is not yet working. 
 # 
 ########################################################################
@@ -385,9 +385,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     if (cluster_UUID_ != "" ) {
       
-      df_base_unit <- df_base_unit %>% 
-        dplyr::group_by( !!! syms( cluster_UUID_ ))                          %>%
-        dplyr::summarize( sum_weight_ = sum( weight ), cluster_count_ = n() )   %>%
+      df_base_unit <- df_base_unit                                              %>% 
+        dplyr::summarize( sum_weight_ = sum( weight ), cluster_count_ = n(), .by = all_of(cluster_UUID_ ))   %>%
         dplyr::select( all_of( cluster_UUID_), sum_weight_, cluster_count_ )    %>%
         dplyr::right_join( df_base_unit, by = cluster_UUID_ )                
       
@@ -409,22 +408,21 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
         
         if ( sum( aoi_df$design_ssu ) > 0) {        
           df_base_unit$arena_ssu_correction <- NULL
-          arena_cluster_statistics <- aoi_df                              %>%
+          arena_cluster_statistics <- aoi_df                                      %>%
             dplyr::select( all_of( arena.analyze$strat_attribute), design_ssu )   %>%
-            dplyr::right_join( df_base_unit                               %>% 
-                                 dplyr::filter( weight > 0 )                     %>%
-                                 dplyr::group_by( !!! syms( arena.analyze$strat_attribute), across( all_of( cluster_UUID_ )))       %>%
-                                 dplyr::summarize( cluster_count_ = n(), sum_weight_ = sum( weight )), by = arena.analyze$strat_attribute)  %>%
+            dplyr::right_join( df_base_unit                                       %>% 
+                                 dplyr::filter( weight > 0 )                      %>%
+                                 dplyr::summarize( cluster_count_ = n(), sum_weight_ = sum( weight ), .by = c(!!! syms( arena.analyze$strat_attribute), all_of( cluster_UUID_ ))), 
+                               by = arena.analyze$strat_attribute)                %>%
             dplyr::mutate( arena_ssu_correction = ifelse( design_ssu > 0 & sum_weight_ > 0, ( design_ssu / cluster_count_) * sum_weight_, 1)) # this works if a full base unit weight is 1 !!
           
           
           # check whether some clusters are split over more than 1 stratum
           if ( nrow( arena_cluster_statistics) != nrow( unique( arena_cluster_statistics[cluster_UUID_] ))) {
             # list of clusters belonging to multiple strata
-            analyze_overlaps <- arena_cluster_statistics         %>%
-              dplyr::group_by( across( all_of( cluster_UUID_ ))) %>%
-              dplyr::summarize( c_count = n() )                  %>%
-              dplyr::filter( c_count > 1 )                       %>%
+            analyze_overlaps <- arena_cluster_statistics                      %>%
+              dplyr::summarize( c_count = n(), .by = all_of(cluster_UUID_ ))  %>%
+              dplyr::filter( c_count > 1 )                                    %>%
               pull( cluster_UUID_ ) 
             
             # fix this later, overlaps get all 1:
@@ -466,25 +464,24 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
           if ( cluster_UUID_ != "" ) {
             arena_psu_statistics <- df_base_unit                                                   %>% 
               dplyr::filter( weight > 0 )                                                          %>%
-              dplyr::group_by( !!! syms( arena.analyze$strat_attribute), across( all_of( cluster_UUID_ ))) %>%
-              dplyr::summarize( cluster_count = n(), by = arena.analyze$strat_attribute )                  %>%
-              dplyr::group_by( !!! syms( arena.analyze$strat_attribute ))                                  %>%
-              dplyr::summarize( psu_count = n() )                                                  %>%
-              dplyr::left_join( aoi_df                                                             %>% 
-                                  dplyr::select( all_of( arena.analyze$strat_attribute), design_psu ), by = arena.analyze$strat_attribute) %>%
+              dplyr::distinct( !!! syms( arena.analyze$strat_attribute), !!! syms(cluster_UUID_ )) %>%
+              dplyr::summarize( psu_count = n(), .by = all_of(arena.analyze$strat_attribute ))     %>%
+              dplyr::left_join( aoi_df  %>% 
+                                  dplyr::select( all_of( arena.analyze$strat_attribute), design_psu ), 
+                     by = arena.analyze$strat_attribute)                                           %>%
               dplyr::mutate( arena_psu_correction = design_psu / psu_count )                       %>%
-              dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )                %>%
+              dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )        %>%
               as.data.frame()
           } else {
-            # not clustered
-            arena_psu_statistics <- df_base_unit                  %>% 
-              dplyr::filter( weight > 0 )                         %>%
-              dplyr::group_by( !!! syms( arena.analyze$strat_attribute )) %>%
-              dplyr::summarize( baseunit_count = n() )            %>%
-              dplyr::left_join( aoi_df                            %>% 
-                                  dplyr::select( all_of( arena.analyze$strat_attribute), design_psu), by = arena.analyze$strat_attribute ) %>%
-              dplyr::mutate( arena_psu_correction = design_psu / baseunit_count )    %>%
-              dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )  %>%
+            # non clustered sampling
+            arena_psu_statistics <- df_base_unit                                                    %>% 
+              dplyr::filter( weight > 0 )                                                           %>%
+              dplyr::summarize( baseunit_count = n(), .by = all_of(arena.analyze$strat_attribute )) %>%
+              dplyr::left_join( aoi_df  %>% 
+                                  dplyr::select( all_of( arena.analyze$strat_attribute), design_psu), 
+                     by = arena.analyze$strat_attribute )                                           %>%
+              dplyr::mutate( arena_psu_correction = design_psu / baseunit_count )                   %>%
+              dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )         %>%
               as.data.frame()
           } 
           
@@ -507,8 +504,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       
       arena.expansion_factor <- df_base_unit                         %>%             # Do: missing stratum in base unit?
         dplyr::filter( weight > 0 )                                  %>%
-        dplyr::group_by( across( all_of( arena.analyze$strat_attribute )))   %>%
-        dplyr::summarize( aoi_weight_ = sum( weight ))               %>% 
+        dplyr::summarize( aoi_weight_ = sum( weight ), .by = all_of( arena.analyze$strat_attribute ) )  %>%   # https://www.tidyverse.org/blog/2023/02/dplyr-1-1-0-per-operation-grouping/
         dplyr::left_join( aoi_df                                     %>% 
                             dplyr::select( all_of( arena.analyze$strat_attribute), area), by = arena.analyze$strat_attribute ) %>% 
         data.frame()
@@ -525,8 +521,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     } else if ( arena.analyze$stratification) { 
       arena.expansion_factor <- df_base_unit                         %>%
         dplyr::filter( weight > 0 )                                  %>%
-        dplyr::group_by( across( all_of( arena.analyze$strat_attribute )))   %>%
-        dplyr::summarize( aoi_weight_ = sum( weight ))               %>% 
+        dplyr::summarize( aoi_weight_ = sum( weight ), .by = all_of( arena.analyze$strat_attribute )) %>% 
         data.frame()
       
       if ( arena.analyze$reportingArea > 0 ) arena.expansion_factor$area <-  arena.analyze$reportingArea / sum( arena.expansion_factor$aoi_weight_) *  arena.expansion_factor$aoi_weight_ 
@@ -879,8 +874,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if ( arena.analyze$post_stratification  ) {
       if ( is.null( ps.weights)) {    # get ps weights from proportions in data
         ps.weights <- df_base_unit                                                    %>%
-          dplyr::group_by( across( arena.chainSummary$postStratificationAttribute ))  %>%
-          dplyr::summarize( Freq = sum( exp_factor_))                                 %>%              
+          dplyr::summarize( Freq = sum( exp_factor_), .by = all_of(arena.chainSummary$postStratificationAttribute))  %>%              
           data.frame() 
         
         names(ps.weights)[[1]] <- "postStratificationAttribute" 
@@ -1356,7 +1350,6 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if ( cluster_UUID_ !="" ) {
       outfile8            <- paste0( out_path, result_entities[[i]], "_cluster_results.csv")
       cluster.results_out <- cluster.results[i] %>% as.data.frame() %>% select(-ends_with(".Total"))
-      #cluster.results_out <- get( arena.chainSummary$clusteringEntity ) %>% select( cluster_UUID_, all_of( arena.chainSummary$clusteringEntityKeys )) %>%
       cluster.results_out <- df_base_unit %>% dplyr::select( all_of( cluster_UUID_), all_of( arena.chainSummary$clusteringEntityKeys )) %>%
         unique() %>%
         dplyr::left_join( cluster.results_out, by = cluster_UUID_) %>%
