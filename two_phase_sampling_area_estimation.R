@@ -8,7 +8,7 @@
 # Created by:   Lauri Vesa, FAO
 #               Anibal Cuchietti, FAO
 #               
-# Last update:  2.5.2024
+# Last update:  6.9.2024
 # 
 #############################################################################
 
@@ -46,42 +46,30 @@ ronak_func <- function( df, joint_category_column, report_categories ) {
 }
 
 
-arenaTwoPhaseSampling_area_estimates <- function() {
+arenaTwoPhaseSampling_area_estimates <- function(arena.analyze, arena.chainSummary) {
   # PACKAGES
-  
   usePackage("tidyverse")
   usePackage("forestinventory")
   
-  #######################################
-  # FUNCTIONS
-  
-  source("https://raw.githubusercontent.com/openforis/r-arena/master/two_phase_ratio_estimator.R")
-  source("https://raw.githubusercontent.com/openforis/r-arena/master/arena_survey_analysis.R")
-  
+  arena.analyze$stratification   <- ifelse(( arena.chainSummary$samplingStrategy == 3 | arena.chainSummary$samplingStrategy == 4  | arena.chainSummary$samplingStrategy == 5 ) & arena.chainSummary$stratumAttribute != "", TRUE, FALSE)
   
   #######################################
-  # read JSON file data
-  # if argument missing, set predefined dimension list to NULL. Dimensions are read from JSON (=arena.chainSummary) 
-  dimension_list_arg <- NULL
-  server_report_step <- "last"
+  # Results out as a list
+  Results_out <- list("ok", "Two-phase sampling: area estimation completed!", NA, NA) 
   
-  # Read json data
-  # KORJAA: Jos DIMENSION puuttuu: arenaReadJSON ei palauta mitään!
-  
-  arena_return        <- arenaReadJSON( dimension_list_arg )
-  if (is.list(arena_return))  {
-    arena.analyze       <- arena_return[[1]]
-    arena.chainSummary  <- arena_return[[2]]
-  }
-  rm(arena_return)
-  
+  #######################################
   #
   # Read commonAttribute (= joint category)
   joint_category_          <- arena.chainSummary$commonAttribute
   
-  # TAKE OUT NEXT 2 LINES AFTER UI COMPLETE
-  if ( is.null(joint_category_) ) joint_category_  <- "rs_land_use"
-  if ( joint_category_ == "")     joint_category_  <- "rs_land_use"
+  # If Joint category is missing, return error msg
+  if ( is.null(joint_category_) ) {
+    Results_out <- list("failed", "Two-phase sampling: Failed! Common Attribute is missing.", NA, NA)
+    return( Results_out )}
+  if ( joint_category_ == "") {
+    Results_out <- list("failed", "Two-phase sampling: Failed! Common Attribute is missing.", NA, NA)
+    return( Results_out )}
+  
   
   # Note, take parentCode from arena.schemaSummary in order to select the correct level!
   cat_level <- arena.schemaSummary     %>% 
@@ -146,8 +134,10 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   #########################################################################
   # Get phase 1 data
   data_phase1 <- categories[[ arena.chainSummary$phase1Category ]]  
-  if ( is.null( data_phase1)) cat("Missing 1st phase category table!")
-  
+  if ( is.null( data_phase1)) {
+    Results_out <- list("failed", "Two-phase sampling: Failed! Missing 1st phase category table!", NA, NA)
+    return( Results_out )
+  }  
   
   if ('code_joint' %in% colnames(data_phase1)) {
     data_phase1$plot_id_ = data_phase1$code_joint
@@ -200,6 +190,13 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   
   # Get phase 2 data
   data_phase2 <- get( arena.analyze$entity ) 
+
+  # Two-phase sampling, use combined attribute as stratum (Stratum__Common attribute)  
+  if (arena.chainSummary$samplingStrategy == 5 & arena.analyze$stratification) { 
+    strat_attribute_name                <- paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__")
+    data_phase2[[strat_attribute_name]] <- paste( data_phase2[[arena.chainSummary$stratumAttribute]], data_phase2[[arena.chainSummary$commonAttribute]], sep = "__")
+  }
+  
   
   if ( arena.chainSummary$stratumAttribute != "") data_phase2$DOMAIN <- data_phase2[[ arena.chainSummary$stratumAttribute ]]
   
@@ -261,7 +258,7 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   if (arena.chainSummary$stratumAttribute != "") {
     cat( paste("Domain/Stratum column in 1st phase table: ", DomainAttribute_phase1), "\n")
     cat( paste("Domain/Stratum column in 2nd phase table: ", arena.chainSummary$stratumAttribute), "\n")
-    cat( "Only area estimates can be currently computed.", "\n")
+    cat( "Only 2-phase area estimates are currently verified to work. Rest of the results will be tested still.", "\n")
     cat( "Processing..")
     cat( "\n", "\n")
   }
@@ -305,6 +302,9 @@ arenaTwoPhaseSampling_area_estimates <- function() {
     # get subset (i.e. Domain data)
     if (arena.chainSummary$stratumAttribute != "") twophase_data_subset <- twophase_data %>% filter(DOMAIN == DomainClasses[i_Domain])
     
+    length( jointCategoryClasses)
+    two_phase_area <- list()
+    
     for (i in (1: length( jointCategoryClasses)) ) {
       i_count            <- i_count + 1 
       col_ph1            <- paste("joint_ph1", jointCategoryClasses[i], sep = "_") 
@@ -314,23 +314,23 @@ arenaTwoPhaseSampling_area_estimates <- function() {
       # compute count of samples in the land category class
       samples_n1     <- sum( twophase_data_subset[[col_ph1]])
       
-      two_phase_area <- forestinventory::twophase( formula = analysisExpression,
+      two_phase_area[[i]] <- forestinventory::twophase( formula = analysisExpression,
                                                    data = twophase_data_subset, 
                                                    list(phase.col = "phase", terrgrid.id = 2), cluster = cluster_attribute)
       
       # Summary of results
-      sum_Area <- two_phase_area$estimation %>%
+      sum_Area <- two_phase_area[[i]]$estimation %>%
         mutate( Report_label      = joint_category_Table %>% filter(code == jointCategoryClasses[i]) %>% select(label) %>% pull()) %>%
         mutate( Cover_percent     = estimate * 100)                               %>%  
         mutate( Cover_SE          = sqrt((estimate * (1 - estimate)/n1)) * 100)   %>%
-        mutate( Total_area_ha     = (Cover_percent/100) * Domain_area)           %>% 
-        mutate( Area_SE           = sqrt(g_variance * Domain_area^2))            %>% 
-        mutate( Domain_code      = DomainClasses[i_Domain])                    %>%
+        mutate( Total_area_ha     = (Cover_percent/100) * Domain_area)            %>% 
+        mutate( Area_SE           = sqrt(g_variance * Domain_area^2))             %>% 
+        mutate( Domain_code       = DomainClasses[i_Domain])                      %>%
         mutate( Report_code       = jointCategoryClasses[i])                      %>%
         left_join( df_Domain %>% select(Domain_code, Domain_label = label), by = "Domain_code")
       
       sum_Area            = sum_Area[ , c(12:14, 7:11)]
-      sum_Area            = cbind( sum_Area, two_phase_area$samplesizes)
+      sum_Area            = cbind( sum_Area, two_phase_area[[i]]$samplesizes)
       sum_Area$samples_n1 = samples_n1
       
       if (i_count == 1) {
@@ -345,17 +345,41 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   
   row.names(result_Area) <- NULL  
   AREA_Results           <- result_Area
+  # drop out not informative columns (n1_clust, n2_clust, n1, n2)
+  AREA_Results           <- AREA_Results[ -c(9:12)]
+  names(two_phase_area)  <- jointCategoryClasses
+  
+  # format data similarly as in main estimation code
+  DF_aoi  <- AREA_Results %>%
+    mutate( uuid       = "0", 
+            code       = paste(Domain_code, Report_code, sep = "__"),
+            code_joint = code,
+            level      = 1,
+            label      = paste(Domain_label, Report_label, sep = " -- "),
+            area       = Total_area_ha,
+            design_psu = 0,
+            design_ssu = 0) %>%
+    select(uuid, code, code_joint, level, label, area, design_psu, design_ssu)
+  
+  # add a new category table: combined Stratum and Common attribute data, with area 
+  categories[[ paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__") ]] <- DF_aoi
+  
+  Results_out[[3]]       <- DF_aoi 
+  Results_out[[4]]       <- twophase_data
+  Results_out[[5]]       <- two_phase_area
+  rm( DF_aoi )
+  
   print( AREA_Results )
   
   # define a folder for output files
   if ( !exists('user_file_path')) user_file_path <- './user_output/'
   # create a folder for files to be exported
   if ( !dir.exists( user_file_path )) dir.create( user_file_path, showWarnings = FALSE )
-  out_path  <- "two-phase/"
-  dir.create( paste0(user_file_path,"/", out_path), showWarnings = FALSE )
+  out_path  <- "area_estimates_(two-phase)/"
+  dir.create( paste0( user_file_path, "/", out_path), showWarnings = FALSE )
   
   out_file_name <- paste0(user_file_path, out_path, "Arena_2phase_resuls_by_common_attribute.csv")
-  tryCatch({if (exists('user_file_path') & exists("AREA_Results"))  write.csv(AREA_Results, out_file_name,  row.names = F)},
+  tryCatch({if (exists('user_file_path') & exists("AREA_Results"))  write.csv(AREA_Results, out_file_name, row.names = F)},
            warning = function( w ) { cat("No output - AREA_Results") },
            error   = function( e ) { cat("No output - AREA_Results")
            })
@@ -364,6 +388,9 @@ arenaTwoPhaseSampling_area_estimates <- function() {
   reporting_categories <- reporting_categories[!reporting_categories %in% c(joint_category_, arena.chainSummary$stratumAttribute, baseunit_key_, cluster_key_)]
   if (length( reporting_categories) == 0) reporting_categories = ""
   
+  return( Results_out )
+  
+  # the rest of the code is experimental. Not used!
   
   if ( all( reporting_categories != "")) {
     # Estimation of area proportions by reporting categories
@@ -430,7 +457,7 @@ arenaTwoPhaseSampling_area_estimates <- function() {
               mutate( Cover_SE          = suppressWarnings( sqrt((estimate * (1 - estimate)/n1)) * 100))   %>%
               mutate( Total_area_ha     = (Cover_percent/100) * land_use_area)                             %>% 
               mutate( Area_SE           = suppressWarnings( sqrt(g_variance * land_use_area^2)))           %>% 
-              mutate( Domain_code      = DomainClasses[i_Domain])                                       %>%
+              mutate( Domain_code       = DomainClasses[i_Domain])                                         %>%
               mutate( Report_code       = jointCategoryClasses[i])                                         %>%
               mutate( Dimension_code    = unique_values_by_col[k])                                         %>%
               mutate( Domain_label            = Domain_label,
@@ -458,6 +485,7 @@ arenaTwoPhaseSampling_area_estimates <- function() {
     
     row.names(result_Area) <- NULL
     result_Area            <- result_Area %>% arrange(Domain_attribute_name, Dimension_attribute_name)
+    Results_out[[4]]       <- result_Area
     
     out_file_name <- paste0(user_file_path, out_path, "Arena_2phase_resuls_by_dimensions.csv")
     tryCatch({if (exists('user_file_path') & exists("result_Area"))  write.csv(result_Area, out_file_name,  row.names = F)},
@@ -468,4 +496,76 @@ arenaTwoPhaseSampling_area_estimates <- function() {
     
   } # if (all( reporting_categories != ""))
   
+  return( Results_out )
+  
 }
+
+
+#### Post stratification results with statistical estimators of variance
+# To properly estimate the proportion of Forest estimators together with another 
+# post stratification variable (as ownership, stand origin, naturalness, etc) an 
+# extra estimate defined as the ratio of the corresponding two-phase estimates 
+# area needs to be produced in order to be able to present the improved two-phase 
+# estimates of total forest area partitioned by the used post stratification 
+# variable with the corresponding statistical estimates of shares of the variable 
+# categories on total forest area. As this statistical procedure was not available 
+# under R forest inventory package (in 2024), it's necessary to apply the following function 
+# that was build thanks to the contribution of Mr Radim Adolt, Forest specialist 
+# consultant from FAO.
+# 
+# Double sampling for POST-STRATIFICATION estimator
+
+fn_two_phase_ratio_estimator <- function(nominator, denominator) 
+{
+  t1 <- (nominator$estimation)$estimate
+  t2<- (denominator$estimation)$estimate
+  R12 <- t1/t2
+  
+  u <- nominator$Rc_x_hat - denominator$mean_Rc_x_hat*R12
+  nominator_variable <- 
+    substring(toString(nominator$input$formula),
+    gregexpr(" " , toString(nominator$input$formula))[[1]][1]+1,
+    gregexpr(", " , toString(nominator$input$formula))[[1]][2]-1) 
+  
+  nominator_variable_index <- 
+    match(nominator_variable, names(nominator$input$data)) 
+  
+  denominator_variable <- 
+    substring(toString(denominator$input$formula),
+              gregexpr(" " , toString(denominator$input$formula))[[1]][1]+1,
+              gregexpr(", " , toString(denominator$input$formula))[[1]][2]-1) 
+  
+  denominator_variable_index <- 
+    match(denominator_variable, names(denominator$input$data)) 
+  
+  nominator2phase_data <- 
+    nominator$input$data[nominator$input$data$phase==2,]
+  
+  denominator2phase_data <- 
+    denominator$input$data[denominator$input$data$phase==2,]
+  
+  y1 <- nominator2phase_data[, nominator_variable_index]
+  y2 <- denominator2phase_data[, denominator_variable_index]
+  cluster <- nominator2phase_data$level_1_code
+  
+  sum_y1_per_cluster <- aggregate(y1, by=list(cluster=cluster), sum)[,2]
+  sum_y2_per_cluster <- aggregate(y2, by=list(cluster=cluster), sum)[,2]
+  nplots_per_cluster <- aggregate(y2, by=list(cluster=cluster), length)[,2]
+  
+  y1c <- sum_y1_per_cluster / nplots_per_cluster
+  y2c <- sum_y2_per_cluster / nplots_per_cluster
+  
+  n1 <- (nominator$estimation)$n1
+  n2 <- (nominator$estimation)$n2
+  
+  v1 <- 1 / t2^2 * (1 - n2/n1) / n2 / (n2-1) / mean(nplots_per_cluster)^2 * 
+          sum(nplots_per_cluster^2 * (u - sum(u*nplots_per_cluster) / 
+          sum(nplots_per_cluster))^2)
+    
+  v2 <- 1 / t2^2 / n1 / (n2 - 1) / mean(nplots_per_cluster)^2 *
+          sum(nplots_per_cluster^2 * (y1c - R12*y2c)^2)
+  
+  return (list(R12 = R12, var = v1 + v2, stderr = sqrt(v1 + v2)))
+}
+
+

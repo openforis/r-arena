@@ -19,7 +19,6 @@
 #               Javier Garcia Perez, FAO
 #               Anibal Cuchietti, FAO (Two-phase sampling for area estimation)
 #               
-# Last update:  25.6.2024
 # Notice: Method for computing results with "post-stratification" is not yet working. 
 # 
 ########################################################################
@@ -108,9 +107,9 @@ arenaReadJSON <- function( dimension_list_arg ) {
     
     if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
         return( "Arena Analytics: No entity to report" )
-    } else if (arena.chainSummary$samplingStrategy == 5 & (is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0)) ) {
-      # 2-phase sampling can be used to compute 'Common categories' area estimates with no dimensions 
-        arena.analyze$dimensions <- ""
+    } else if ( arena.chainSummary$samplingStrategy == 5 ) {
+      # 2-phase sampling uses for reporting Stratum + Common attribute
+        arena.analyze$dimensions <- paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__")
     } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
         return( "Arena Analytics: No dimension to report" )
     } else {
@@ -171,18 +170,12 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   old_sigfig      <- options("pillar.sigfig") # https://github.com/gergness/srvyr/blob/main/vignettes/srvyr-vs-survey.Rmd
   options( "pillar.sigfig" = 5)
   
-
-  # Two-phase sampling. Only for area estimation in this version. 
-  if (arena.chainSummary$samplingStrategy == 5) {
-    source( "https://raw.githubusercontent.com/openforis/r-arena/master/two_phase_sampling_area_estimation.R")
-    arenaTwoPhaseSampling_area_estimates()
-    return( "Two-phase sampling: area estimation completed!" )
-  }  
-  
   
   # if argument missing, set predefined dimension list to NULL. Dimensions are read from JSON (=arena.chainSummary) 
-  if (is_missing( dimension_list_arg )) dimension_list_arg <- NULL
-  if (is_missing( server_report_step )) server_report_step <- "last"
+  if (!exists( "dimension_list_arg" ))    dimension_list_arg <- NULL
+  if (is_missing( dimension_list_arg ))   dimension_list_arg <- NULL
+  if (!exists( "server_report_step" ))    server_report_step <- "last"
+  if (is_missing( server_report_step ))   server_report_step <- "last"
   
   tryCatch( usePackage('tidyr'),
             error = function(e){ library('tidyr')
@@ -235,6 +228,16 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   arena.chainSummary  <- arena_return[[2]]
   rm(arena_return)
   
+  ############################################################################
+  # Two-phase sampling. Only for area estimation. 
+  if (arena.chainSummary$samplingStrategy == 5) {
+    source( "https://raw.githubusercontent.com/openforis/r-arena/master/two_phase_sampling_area_estimation.R")
+    twoPhaseSampling_results <- arenaTwoPhaseSampling_area_estimates(arena.analyze, arena.chainSummary)
+    if ( twoPhaseSampling_results[[1]] == "failed" )  return( twoPhaseSampling_results[[2]])
+    
+    # area results by "jointCategoryClasses":  names(twoPhaseSampling_results[[5]][1]), and twoPhaseSampling_results[[5]][[1]]$estimation  e.g.
+  }  
+  
   
   
   #############################
@@ -261,23 +264,30 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     
     # get base unit data into a data frame
-    df_base_unit                  <- get( arena.chainSummary$baseUnit )
+    df_base_unit                   <- get( arena.chainSummary$baseUnit )
     df_base_unit$weight[ is.na( df_base_unit$weight)] <- 0
-    df_base_unit                  <- conversion_HierarchicalCodeAttributes( df_base_unit)
+    df_base_unit                   <- conversion_HierarchicalCodeAttributes( df_base_unit)
     
     # take a copy of weight. Non-response bias correction may change weights. 
-    df_base_unit$weight_original_ <- df_base_unit$weight 
+    df_base_unit$weight_original_  <- df_base_unit$weight 
     # Key attribute names: base unit and clustering attributes
-    base_UUID_                    <- paste0( arena.chainSummary$baseUnit, "_uuid")
-    cluster_UUID_                 <- ifelse( arena.chainSummary$clusteringEntity != "", paste0( arena.chainSummary$clusteringEntity, "_uuid"), "")    
+    base_UUID_                     <- paste0( arena.chainSummary$baseUnit, "_uuid")
+    cluster_UUID_                  <- ifelse( arena.chainSummary$clusteringEntity != "", paste0( arena.chainSummary$clusteringEntity, "_uuid"), "")    
     # Stratification check: method, attribute and areas
-    arena.analyze$stratification          <- ifelse(( arena.chainSummary$samplingStrategy==3 | arena.chainSummary$samplingStrategy==4 ) & arena.chainSummary$stratumAttribute != "", TRUE, FALSE)
-    arena.analyze$strat_attribute         <- ifelse( arena.analyze$stratification, arena.chainSummary$stratumAttribute, "")
+    arena.analyze$stratification   <- ifelse(( arena.chainSummary$samplingStrategy == 3 | arena.chainSummary$samplingStrategy == 4  | arena.chainSummary$samplingStrategy == 5 ) & arena.chainSummary$stratumAttribute != "", TRUE, FALSE)
+    arena.analyze$strat_attribute  <- ifelse( arena.analyze$stratification, arena.chainSummary$stratumAttribute, "")
     
+    # Two-phase sampling, use combined attribute as stratum (Stratum__Common attribute)  
+    if (arena.chainSummary$samplingStrategy == 5 & arena.analyze$stratification) { 
+      arena.analyze$strat_attribute                         <- paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__")
+      arena.chainSummary$stratumAttributeCategory_2phase    <- arena.analyze$strat_attribute
+      arena.chainSummary$analysis$nonResponseBiasCorrection <- FALSE
+      df_base_unit[[arena.analyze$strat_attribute]]         <- paste( df_base_unit[[arena.chainSummary$stratumAttribute]], df_base_unit[[arena.chainSummary$commonAttribute]], sep = "__")
+    }
     
     # parameters for post-stratification
     
-    ps.weights                 <- NULL 
+    ps.weights                     <- NULL 
     # if post-stratification attribute is missing, set ""
     if ( is.null( arena.chainSummary$postStratificationAttribute )) arena.chainSummary$postStratificationAttribute <- ""
     
@@ -509,6 +519,20 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
                             dplyr::select( all_of( arena.analyze$strat_attribute), area), by = arena.analyze$strat_attribute ) %>% 
         data.frame()
       
+      # test this
+      if (arena.chainSummary$samplingStrategy == 5) {
+        arena.analyze$reportingArea <- 0
+        df_base_unit$exp_factor_    <- NULL
+        arena.expansion_factor$join_var  <- arena.expansion_factor[[1]]  
+        join_df                          <- twoPhaseSampling_results[[3]] %>% dplyr::select(join_var = code, area) 
+        
+        arena.expansion_factor <- arena.expansion_factor %>%
+          dplyr::select( -area ) %>%
+          left_join( join_df, by = 'join_var') %>%
+          dplyr::select( -join_var)
+      }
+      # test ends
+      
       if ( all( aoi_df$area == 0) & ( arena.analyze$reportingArea > 0 )) arena.expansion_factor$area <-  arena.analyze$reportingArea / sum( arena.expansion_factor$aoi_weight_) *  arena.expansion_factor$aoi_weight_ 
       
       arena.expansion_factor$exp_factor_ <- arena.expansion_factor$area / arena.expansion_factor$aoi_weight_ 
@@ -700,6 +724,18 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
           } else {
             out_file_data <- result_cat[[i]]
           }
+          
+          # Keep only TOTALS
+          out_file_data        <- out_file_data %>% select( -ends_with(".Mean"))
+          data_names           <- names( out_file_data)
+          names(out_file_data) <- gsub( "_ha.Total", "", data_names) 
+          data_names           <- names( out_file_data)
+
+          base_unit_cat_attributes <- data_names[ !result_cat_attributes[[i]] %in% names(df_base_unit)]
+          data_names[ data_names %in% base_unit_cat_attributes] <- paste0("NOTBASE_", data_names[data_names %in% base_unit_cat_attributes]) 
+          names( out_file_data) <- data_names
+          rm( data_names)
+          
           out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
           tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
                    warning = function( w ) { cat("No output - OLAP data") },
@@ -791,8 +827,9 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     result_names_category_2 <- intersect( arena.analyze$dimensions, arena.chainSummary$resultVariables$name) # cat. attributes as result attributes
     
     # join stratification attribute labels
+    # Works on two-phase still here
     if ( arena.analyze$stratification ) {
-      if (!(arena.analyze$strat_attribute %in% result_names_category_1) & !(arena.analyze$strat_attribute %in% result_names_category_2)) {
+      if (arena.chainSummary$samplingStrategy !=5 & !(arena.analyze$strat_attribute %in% result_names_category_1) & !(arena.analyze$strat_attribute %in% result_names_category_2)) {
         result_names_category_1 <- c( result_names_category_1, arena.analyze$strat_attribute )
       } 
     }
@@ -850,17 +887,15 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if (exists("result_names_category_1")) rm(result_names_category_1) 
     if (exists("result_names_category_2")) rm(result_names_category_2) 
     
-    # get analysis data 
-    df_analysis <- as.data.frame( result_cat[[arena.analyze$entity]] )
     
-    # get categorical variables
+    # get list of categorical variables names
     cat_names_uuid <- result_cat[[ arena.analyze$entity ]] %>%
       data.frame()               %>%
       select( where( is.character))    %>%
       select(ends_with("_uuid")) %>%
       names()
     
-    # get numeric variables
+    # get list of numeric variables names
     cat_names_num <- result_cat[[ arena.analyze$entity ]] %>%
       data.frame()                                        %>%
       select( where( is.numeric))                               %>%
@@ -900,28 +935,84 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     if ( arena.analyze$post_stratification ) dimension_names <- unique( c( dimension_names, arena.chainSummary$postStratificationAttribute ))
     
     
+    ########################################
     # Data into the analysis
+    ########################################
     df_analysis_combined <- result_cat[[ arena.analyze$entity ]]
     
+    ########################################
+    # generate new base units, which are missing each combination of data
+    # if there are non-base unit cat. dimensios.
+    # https://tidyr.tidyverse.org/reference/complete.html
+    # https://stackoverflow.com/questions/40577484/using-tidyr-complete-with-column-names-specified-in-variables
+    ########################################
+    
+    if ( !all( arena.analyze$dimensions_at_baseunit)) {
+      
+      if (arena.analyze$strat_attribute != "") {
+      dim_names <- dimension_names[ dimension_names != arena.analyze$strat_attribute] 
+      df_analysis_combined <- df_analysis_combined %>% 
+        group_by( across( all_of(arena.analyze$strat_attribute))) %>%
+        tidyr::complete(!!!syms(dim_names)) %>%
+        data.frame()
+      } else {
+        df_analysis_combined <- df_analysis_combined %>% tidyr::complete(!!!syms(dimension_names))
+      }
+        
+      df_analysis_combined$entity_count_[is.na(df_analysis_combined$entity_count_)] <- 0
+      
+      df_analysis_combined <- df_analysis_combined %>%
+        select(-weight, -exp_factor_) %>%
+        left_join(df_analysis_combined %>%
+                    filter(!is.na(exp_factor_)) %>%
+                    distinct(!! sym(base_UUID_), .keep_all = T ) %>%
+                    select(all_of(base_UUID_), weight, exp_factor_),
+                  by= base_UUID_) %>%      
+        dplyr::mutate( across( where( is.numeric), ~tidyr::replace_na(., 0)))
+      
+    }
+    
+    
+    
     # compress data in cluster sampling
-    # (entity_count_ : number of base units in a cluster)
+    # entity_count_ : number of base units in a cluster, or in clustered sampling this means number of clusters
     if ( cluster_UUID_ != "" & !arena.chainSummary$analysis$clusteringVariances ) {
       
       ids_2_survey          <- NULL
       dimension_names       <- dimension_names[ !stringr::str_detect( dimension_names, pattern = base_UUID_) ] # remove a list element
       cat_names_uuid        <- cat_names_uuid[  !stringr::str_detect( cat_names_uuid,  pattern = base_UUID_) ]
       
-      df_analysis_combined  <- df_analysis_combined                               %>%
-        dplyr::select( -all_of( base_UUID_))                                      %>% 
-        dplyr::group_by( across( all_of( cluster_UUID_ )))                        %>%
-        dplyr::mutate( across( ends_with('.Total'), ~sum(  ., na.rm = TRUE )))    %>%
-        dplyr::mutate( across( ends_with('.Mean'),  ~mean( ., na.rm = TRUE )))    %>%
-        dplyr::mutate( weight = sum( weight), exp_factor_ = sum( exp_factor_), entity_count_ = sum( entity_count_)) %>% 
-        distinct( !!! syms( cluster_UUID_), .keep_all = TRUE)                     %>%
-        data.frame()
+      if ( all( arena.analyze$dimensions_at_baseunit)) {   # all dimensions are at the base unit or above
+        
+        df_analysis_combined  <- df_analysis_combined                               %>%
+          dplyr::select( -all_of( base_UUID_))                                      %>% 
+          dplyr::group_by( across( all_of( cluster_UUID_ )))                        %>%
+          dplyr::mutate( across( ends_with('.Total'), ~sum(  ., na.rm = TRUE )))    %>%
+          dplyr::mutate( across( ends_with('.Mean'),  ~mean( ., na.rm = TRUE )))    %>%
+          dplyr::mutate( weight = sum( weight), exp_factor_ = sum( exp_factor_), entity_count_ = sum( entity_count_)) %>% 
+          distinct( !!! syms( cluster_UUID_), .keep_all = TRUE)                     %>%
+          data.frame()
+        
+      } else {
+        
+        df_analysis_combined  <- df_analysis_combined                                                %>%
+          dplyr::select( -all_of( base_UUID_), -weight, -exp_factor_, -entity_count_ )               %>% 
+          dplyr::group_by( across( c( all_of( cluster_UUID_ ), all_of(arena.analyze$dimensions))))   %>%
+          dplyr::mutate( across( ends_with('.Total'), ~sum(  ., na.rm = TRUE )))                     %>%
+          dplyr::mutate( across( ends_with('.Mean'),  ~mean( ., na.rm = TRUE )))                     %>%
+          distinct( !!! syms( cluster_UUID_), !!! syms( arena.analyze$dimensions), .keep_all = TRUE) %>%
+          left_join( df_analysis_combined                                                            %>% 
+                       select(all_of( base_UUID_), all_of(cluster_UUID_), weight,exp_factor_, entity_count_) %>%
+                       distinct( !!! syms( base_UUID_), .keep_all = TRUE)                            %>% 
+                       summarize( weight = sum( weight), exp_factor_ = sum(exp_factor_ ), entity_count_ = sum( entity_count_), .by =  all_of( cluster_UUID_ )),
+                     by = cluster_UUID_)                                                             %>%
+          data.frame()
+      }
+      
       
       df_analysis_weights <- df_analysis_combined %>%
-        select( all_of( cluster_UUID_), weight, exp_factor_ )
+        select( all_of( cluster_UUID_), weight, exp_factor_ ) %>%
+        distinct( !!! syms( cluster_UUID_), .keep_all = TRUE)  
       
     } else if ( cluster_UUID_ != "" & arena.chainSummary$analysis$clusteringVariances ) {
       ids_2_survey        <- cluster_UUID_
@@ -929,7 +1020,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       df_analysis_weights  <- df_analysis_combined                              %>% 
         distinct( !!! syms( base_UUID_), .keep_all = T)                         %>% 
         dplyr::select( all_of( base_UUID_), weight, exp_factor_)
-      
+
+        
     } else {
       ids_2_survey          <- NULL
       
@@ -1051,7 +1143,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     
     # 5. DOUBLE PHASE * coming later)
-    if ( arena.chainSummary$samplingStrategy == 5 ) design_srvyr <- ""
+  #  if ( arena.chainSummary$samplingStrategy == 5 ) design_srvyr <- ""
     
     # post-stratification
     # https://github.com/gergness/srvyr/issues/50
@@ -1239,6 +1331,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
              error   = function( e ) { cat("No output - out_mean")
              })
     
+    # createForestPlots( out_mean, user_file_path)
+    
     tryCatch({if (exists('user_file_path') & exists("out_total")) write.csv(out_total, out_file[[2]], row.names = F)},
              warning = function( w ) { cat("No output - out_total") },
              error   = function( e ) { cat("No output - out_total")
@@ -1297,10 +1391,10 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
              })
   }
   
-  tryCatch({if ( exists('user_file_path') & exists("out_area")) write.csv( out_area, out_file[[6]], row.names = F)},
-           warning = function( w ) { cat("No output - out_area") },
-           error   = function( e ) { cat("No output - out_area")
-           })
+  # tryCatch({if ( exists('user_file_path') & exists("out_area")) write.csv( out_area, out_file[[6]], row.names = F)},
+  #          warning = function( w ) { cat("No output - out_area") },
+  #          error   = function( e ) { cat("No output - out_area")
+  #          })
   
   if ( arena.chainSummary$analysis$nonResponseBiasCorrection) {
     if ( arena.analyze$stratification | arena.analyze$post_stratification ) {
