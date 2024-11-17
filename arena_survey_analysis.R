@@ -24,44 +24,44 @@
 ########################################################################
 #  How to call this script:
 # option 1. Dimensions got from Arena UI:
-    #
-    # arena_process_response <- arenaAnalytics( )
-    # print( arena_process_response) 
+#
+# arena_process_response <- arenaAnalytics( )
+# print( arena_process_response) 
 #
 # option 2. In 999-common-end.R, and dimensions are all categorical attributes for entity 'plot':
-    #
-    # schemaSummary <- arena.schemaSummary[,2:10]
-    # 
-    # dimensions_plot  <- schemaSummary %>% filter(parentEntity=="plot" & type=="code" & multiple=="false") 
-    # dimensions_names <- dimensions_plot$name
-    # dimensions_keys  <- c("forest_category", "province", "forest_area_name") 
-    # # for RStudio Server, set this argument:
-    # server_report_step <- ""
-    # 
-    # dimension_list <- list()
-    # for (i in 1:length(dimensions_names)) {
-    #   if (i == length(dimensions_names)) server_report_step <- "last"
-    #   
-    #   dimension_list[[i]]    <- c( dimensions_keys, dimensions_names[i] )
-    #   arena_process_response <- arenaAnalytics( dimension_list[[i]], server_report_step )
-    #   cat("\n")
-    #   print( paste(i, "-", arena_process_response ))
-    #   cat("\n")
-    # }
+#
+# schemaSummary <- arena.schemaSummary[,2:10]
+# 
+# dimensions_plot  <- schemaSummary %>% filter(parentEntity=="plot" & type=="code" & multiple=="false") 
+# dimensions_names <- dimensions_plot$name
+# dimensions_keys  <- c("forest_category", "province", "forest_area_name") 
+# # for RStudio Server, set this argument:
+# server_report_step <- ""
+# 
+# dimension_list <- list()
+# for (i in 1:length(dimensions_names)) {
+#   if (i == length(dimensions_names)) server_report_step <- "last"
+#   
+#   dimension_list[[i]]    <- c( dimensions_keys, dimensions_names[i] )
+#   arena_process_response <- arenaAnalytics( dimension_list[[i]], server_report_step )
+#   cat("\n")
+#   print( paste(i, "-", arena_process_response ))
+#   cat("\n")
+# }
 #
 #########################################
 ### Note: 'dimension_list' can also be missing. In that case dimensions are read from UI via json
 #
 # An example of dimension_list:
 # > dimension_list
-    # [[1]]
-    # [1] "forest_category"  "province"         "forest_area_name" "plot_fires"      
-    # 
-    # [[2]]
-    # [1] "forest_category"       "province"              "forest_area_name"      "plot_forest_condition"
-    # 
-    # [[3]]
-    # [1] "forest_category"  "province"         "forest_area_name" "plot_grazing" 
+# [[1]]
+# [1] "forest_category"  "province"         "forest_area_name" "plot_fires"      
+# 
+# [[2]]
+# [1] "forest_category"       "province"              "forest_area_name"      "plot_forest_condition"
+# 
+# [[3]]
+# [1] "forest_category"  "province"         "forest_area_name" "plot_grazing" 
 
 
 #######################################################################
@@ -80,79 +80,79 @@ arenaReadJSON <- function( dimension_list_arg ) {
   if ( is.null( arena.chainSummary$analysis$entity) | is.null( arena.chainSummary$analysis$dimensions )) return( "Arena Analytics: No entity or dimensions to report" )
   if ( arena.chainSummary$analysis$entity == "" ) return( "Arena Analytics: No entity to report" )
   
-    arena.analyze$entity       <- trimws( arena.chainSummary$analysis$entity )
-    if (!is.null(dimension_list_arg)) {
-      arena.analyze$dimensions   <- trimws( dimension_list_arg ) 
-    } else {
-      arena.analyze$dimensions   <- trimws( arena.chainSummary$analysis$dimensions )
-    }
+  arena.analyze$entity       <- trimws( arena.chainSummary$analysis$entity )
+  if (!is.null(dimension_list_arg)) {
+    arena.analyze$dimensions   <- trimws( dimension_list_arg ) 
+  } else {
+    arena.analyze$dimensions   <- trimws( arena.chainSummary$analysis$dimensions )
+  }
+  
+  # drop out totally blank (NA) columns
+  drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
+  # assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+  # assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+  if ( length( drop_names) > 0) {
+    arena.chainSummary$analysis$dimensions <- arena.chainSummary$analysis$dimensions[!arena.chainSummary$analysis$dimensions %in% drop_names ]
+    arena.analyze$dimensions               <- arena.analyze$dimensions[ !arena.analyze$dimensions %in% drop_names ]
+  }   
+  
+  arena.analyze$showStatisticsInResults <- TRUE # standard deviation, variance, and conf. intervals are shown in the result tables
+  
+  if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
+  if ( toupper( arena.analyze$filter) == "NOSTATISTICS" | toupper( arena.analyze$filter) == "NO STATISTICS" ) {
+    arena.analyze$showStatisticsInResults = FALSE
+    arena.analyze$filter = ""
+  }
+  if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
+  
+  if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
+    return( "Arena Analytics: No entity to report" )
+  } else if ( arena.chainSummary$samplingStrategy == 5 ) {
+    # 2-phase sampling uses for reporting Stratum + Common attribute
+    arena.analyze$dimensions <- paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__")
+  } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
+    return( "Arena Analytics: No dimension to report" )
+  } else {
+    arena.analyze$dimensions_datatypes   <- c()
+    arena.analyze$dimensions_at_baseunit <- c()
     
     # drop out totally blank (NA) columns
     drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
-    # assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
-    # assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
-    if ( length( drop_names) > 0) {
-      arena.chainSummary$analysis$dimensions <- arena.chainSummary$analysis$dimensions[!arena.chainSummary$analysis$dimensions %in% drop_names ]
-      arena.analyze$dimensions               <- arena.analyze$dimensions[ !arena.analyze$dimensions %in% drop_names ]
-    }   
+    assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
+    assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
+    arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
     
-    arena.analyze$showStatisticsInResults <- TRUE # standard deviation, variance, and conf. intervals are shown in the result tables
+    entity_datatype <- lapply(get( arena.analyze$entity), class)
     
-    if ( !is.null( arena.chainSummary$analysis$filter))          arena.analyze$filter            <- trimws( arena.chainSummary$analysis$filter )  
-    if ( toupper( arena.analyze$filter) == "NOSTATISTICS" | toupper( arena.analyze$filter) == "NO STATISTICS" ) {
-      arena.analyze$showStatisticsInResults = FALSE
-      arena.analyze$filter = ""
+    for ( j in (1 : length( arena.analyze$dimensions ))){
+      arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
+                                                           as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
+      arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
+      arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
     }
-    if ( !is.null( arena.chainSummary$analysis$reportingMethod)) arena.analyze$reportingMethod   <- trimws( arena.chainSummary$analysis$reportingMethod )  
-    
-    if ( is.null( arena.analyze$entity) | arena.analyze$entity =="" | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-        return( "Arena Analytics: No entity to report" )
-    } else if ( arena.chainSummary$samplingStrategy == 5 ) {
-      # 2-phase sampling uses for reporting Stratum + Common attribute
-        arena.analyze$dimensions <- paste( arena.chainSummary$stratumAttribute, arena.chainSummary$commonAttribute, sep = "__")
-    } else if ( is.null( arena.analyze$dimensions ) | ( length( arena.analyze$dimensions ) == 0) | is.na( arena.analyze$entity ) | length( arena.analyze$entity ) == 0 ) {
-        return( "Arena Analytics: No dimension to report" )
-    } else {
-        arena.analyze$dimensions_datatypes   <- c()
-        arena.analyze$dimensions_at_baseunit <- c()
-        
-        # drop out totally blank (NA) columns
-        drop_names <- get( arena.analyze$entity) %>% select( where( ~all( is.na(.)))) %>% names()
-        assign( arena.analyze$entity,        get( arena.analyze$entity ) %>% select( -any_of( drop_names)))
-        assign( arena.chainSummary$baseUnit, get( arena.chainSummary$baseUnit ) %>% select( -any_of( drop_names)))
-        arena.analyze$dimensions <- arena.analyze$dimensions[!arena.analyze$dimensions %in% drop_names]
-        
-        entity_datatype <- lapply(get( arena.analyze$entity), class)
-        
-        for ( j in (1 : length( arena.analyze$dimensions ))){
-          arena.analyze$dimensions_datatypes[[j]]   <- ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.analyze$entity)),
-                                                               as.character( entity_datatype[arena.analyze$dimensions[[j]]]), "character")
-          arena.analyze$dimensions_datatypes[[j]]   <- ifelse(  paste0( arena.analyze$dimensions[[j]], "_scientific_name") %in% names( get( arena.analyze$entity)), "taxon", arena.analyze$dimensions_datatypes[[j]] )
-          arena.analyze$dimensions_at_baseunit[[j]] <- unlist( ifelse( arena.analyze$dimensions[[j]] %in% names( get( arena.chainSummary$baseUnit)), TRUE, FALSE))
-        }
-        arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
-        arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
-        arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
-        # change comma to dot (if used as decimal separator)
-        if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
-        arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
-        arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
-        rm(entity_datatype)
-    }
-    
-   
-    # Default values for missing data: 
-    # a) no base unit -> no sampling design 
-    if ( arena.chainSummary$baseUnit == "" )              arena.chainSummary$samplingDesign    <- FALSE
-    # b) stratum attribute is missing
-    if ( is.null( arena.chainSummary$stratumAttribute ))  arena.chainSummary$stratumAttribute  <- ""
-    # nonresponse bias correction is missing
-    if ( is.null( arena.chainSummary$analysis$nonResponseBiasCorrection )) arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
-    
-    arena.analyze$post_stratification        <- FALSE
-    arena.analyze$stratification_area_exists <- FALSE
-    
-    return( list(arena.analyze, arena.chainSummary) )
+    arena.analyze$dimensions_datatypes   <- as.character( arena.analyze$dimensions_datatypes)
+    arena.analyze$dimensions_at_baseunit <- as.logical( arena.analyze$dimensions_at_baseunit) 
+    arena.analyze$dimensions_baseunit    <- as.character( unlist( Map(`[`, arena.analyze$dimensions, arena.analyze$dimensions_at_baseunit)))
+    # change comma to dot (if used as decimal separator)
+    if (is.null( arena.chainSummary$analysis$reportingArea)) arena.chainSummary$analysis$reportingArea <- 100
+    arena.chainSummary$analysis$reportingArea <- stringr::str_replace( arena.chainSummary$analysis$reportingArea, ",", ".")
+    arena.analyze$reportingArea               <- as.numeric( paste0( "0", trimws( arena.chainSummary$analysis$reportingArea ))) 
+    rm(entity_datatype)
+  }
+  
+  
+  # Default values for missing data: 
+  # a) no base unit -> no sampling design 
+  if ( arena.chainSummary$baseUnit == "" )              arena.chainSummary$samplingDesign    <- FALSE
+  # b) stratum attribute is missing
+  if ( is.null( arena.chainSummary$stratumAttribute ))  arena.chainSummary$stratumAttribute  <- ""
+  # nonresponse bias correction is missing
+  if ( is.null( arena.chainSummary$analysis$nonResponseBiasCorrection )) arena.chainSummary$analysis$nonResponseBiasCorrection   <- FALSE
+  
+  arena.analyze$post_stratification        <- FALSE
+  arena.analyze$stratification_area_exists <- FALSE
+  
+  return( list(arena.analyze, arena.chainSummary) )
 } # arenaReadJSON
 
 
@@ -478,7 +478,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
               dplyr::summarize( psu_count = n(), .by = all_of(arena.analyze$strat_attribute ))     %>%
               dplyr::left_join( aoi_df  %>% 
                                   dplyr::select( all_of( arena.analyze$strat_attribute), design_psu ), 
-                     by = arena.analyze$strat_attribute)                                           %>%
+                                by = arena.analyze$strat_attribute)                                           %>%
               dplyr::mutate( arena_psu_correction = design_psu / psu_count )                       %>%
               dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )        %>%
               as.data.frame()
@@ -489,7 +489,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
               dplyr::summarize( baseunit_count = n(), .by = all_of(arena.analyze$strat_attribute )) %>%
               dplyr::left_join( aoi_df  %>% 
                                   dplyr::select( all_of( arena.analyze$strat_attribute), design_psu), 
-                     by = arena.analyze$strat_attribute )                                           %>%
+                                by = arena.analyze$strat_attribute )                                           %>%
               dplyr::mutate( arena_psu_correction = design_psu / baseunit_count )                   %>%
               dplyr::select( all_of( arena.analyze$strat_attribute), arena_psu_correction )         %>%
               as.data.frame()
@@ -712,36 +712,36 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       
       ## PART 2a. get results at the base unit level for each result variable for OLAP
       if (result_entities[[i]] != arena.chainSummary$baseUnit) {
-          out_path  <- "OLAP/"
-          dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
+        out_path  <- "OLAP/"
+        dir.create( paste0( user_file_path, out_path ), showWarnings = FALSE )
         
-          keys_to_add <- which( !(arena.chainSummary$baseUnitEntityKeys %in% names(result_cat[[i]])))
-          if (length(keys_to_add) > 0) {
-            join_col <- df_base_unit %>% select(all_of(base_UUID_), all_of(arena.chainSummary$baseUnitEntityKeys[keys_to_add])) %>%
-              dplyr::mutate( across( where( is.numeric), ~as.character(.))) %>% distinct()
-            
-            out_file_data <- result_cat[[i]] %>% left_join(join_col, by = base_UUID_) 
-          } else {
-            out_file_data <- result_cat[[i]]
-          }
+        keys_to_add <- which( !(arena.chainSummary$baseUnitEntityKeys %in% names(result_cat[[i]])))
+        if (length(keys_to_add) > 0) {
+          join_col <- df_base_unit %>% select(all_of(base_UUID_), all_of(arena.chainSummary$baseUnitEntityKeys[keys_to_add])) %>%
+            dplyr::mutate( across( where( is.numeric), ~as.character(.))) %>% distinct()
           
-          # Keep only TOTALS
-          out_file_data        <- out_file_data %>% select( -ends_with(".Mean"))
-          data_names           <- names( out_file_data)
-          names(out_file_data) <- gsub( "_ha.Total", "", data_names) 
-          data_names           <- names( out_file_data)
-
-          base_unit_cat_attributes <- data_names[ !result_cat_attributes[[i]] %in% names(df_base_unit)]
-          data_names[ data_names %in% base_unit_cat_attributes] <- paste0("NOTBASE_", data_names[data_names %in% base_unit_cat_attributes]) 
-          names( out_file_data) <- data_names
-          rm( data_names)
-          
-          out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
-          tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
-                   warning = function( w ) { cat("No output - OLAP data") },
-                   error   = function( e ) { cat("No output - OLAP data")
-                   })
-          rm( keys_to_add ); rm( out_file_data ); rm( out_file_name )
+          out_file_data <- result_cat[[i]] %>% left_join(join_col, by = base_UUID_) 
+        } else {
+          out_file_data <- result_cat[[i]]
+        }
+        
+        # Keep only TOTALS
+        out_file_data        <- out_file_data %>% select( -ends_with(".Mean"))
+        data_names           <- names( out_file_data)
+        names(out_file_data) <- gsub( "_ha.Total", "", data_names) 
+        data_names           <- names( out_file_data)
+        
+        base_unit_cat_attributes <- data_names[ !result_cat_attributes[[i]] %in% names(df_base_unit)]
+        data_names[ data_names %in% base_unit_cat_attributes] <- paste0("NOTBASE_", data_names[data_names %in% base_unit_cat_attributes]) 
+        names( out_file_data) <- data_names
+        rm( data_names)
+        
+        out_file_name <- paste0(user_file_path, "OLAP/OLAP_", result_entities[i], ".csv")
+        tryCatch({if (exists('user_file_path'))  write.csv(out_file_data, out_file_name,  row.names = F)},
+                 warning = function( w ) { cat("No output - OLAP data") },
+                 error   = function( e ) { cat("No output - OLAP data")
+                 })
+        rm( keys_to_add ); rm( out_file_data ); rm( out_file_name )
       }      
       
       ## PART 2b. compute sum of per hectare results at the base unit level for each result variable
@@ -811,7 +811,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
   if ( arena.analyze$reportingMethod == '1' ) arena.reportingLoops = 1
   if ( arena.analyze$reportingMethod == '2' ) arena.reportingLoops = length( arena.analyze$dimensions )
   
-
+  
   for ( rep_loop in (1 : arena.reportingLoops )) {
     if ( arena.analyze$reportingMethod == '2' ) {
       arena.analyze$dimensions <- arena.analyze$dimensions_input[rep_loop]
@@ -942,32 +942,38 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     ########################################
     # generate new base units, which are missing each combination of data
-    # if there are non-base unit cat. dimensios.
+    # if there are non-base unit cat. dimensions.
     # https://tidyr.tidyverse.org/reference/complete.html
     # https://stackoverflow.com/questions/40577484/using-tidyr-complete-with-column-names-specified-in-variables
     ########################################
     
     if ( !all( arena.analyze$dimensions_at_baseunit)) {
+      names_to_drop <- dimension_names[ dimension_names %in% arena.analyze$dimensions_baseunit ]
+      if (cluster_UUID_ != "") names_to_drop <- c( names_to_drop, cluster_UUID_)
+      dim_names     <- dimension_names[ !(dimension_names %in% names_to_drop)]
       
       if (arena.analyze$strat_attribute != "") {
-      dim_names <- dimension_names[ dimension_names != arena.analyze$strat_attribute] 
-      df_analysis_combined <- df_analysis_combined %>% 
-        group_by( across( all_of(arena.analyze$strat_attribute))) %>%
-        tidyr::complete(!!!syms(dim_names)) %>%
-        data.frame()
-      } else { 
-        df_analysis_combined <- df_analysis_combined %>% tidyr::complete(!!!syms(dimension_names))
-      }
         
+        df_analysis_combined <- df_analysis_combined                %>% 
+          group_by( across( all_of(arena.analyze$strat_attribute))) %>%
+          tidyr::complete(!!!syms(dim_names))                       %>%
+          data.frame()
+      } else {
+        
+        df_analysis_combined <- df_analysis_combined %>% 
+          tidyr::complete(!!!syms(dim_names)) %>%
+          data.frame()
+      }
+      
       df_analysis_combined$entity_count_[is.na(df_analysis_combined$entity_count_)] <- 0
       
-      df_analysis_combined <- df_analysis_combined %>%
-        select(-weight, -exp_factor_) %>%
-        left_join(df_analysis_combined %>%
-                    filter(!is.na(exp_factor_)) %>%
-                    distinct(!! sym(base_UUID_), .keep_all = T ) %>%
-                    select(all_of(base_UUID_), weight, exp_factor_),
-                  by= base_UUID_) %>%      
+      df_analysis_combined <- df_analysis_combined                %>%
+        select(-weight, -exp_factor_, -all_of(names_to_drop))     %>%
+        left_join(df_analysis_combined                            %>%
+                    filter( !is.na(exp_factor_))                  %>%
+                    distinct( !! sym(base_UUID_), .keep_all = T ) %>%
+                    select( all_of(base_UUID_), all_of( names_to_drop), weight, exp_factor_),
+                  by = base_UUID_)                                %>%      
         dplyr::mutate( across( where( is.numeric), ~tidyr::replace_na(., 0)))
       
     }
@@ -1020,8 +1026,8 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       df_analysis_weights  <- df_analysis_combined                              %>% 
         distinct( !!! syms( base_UUID_), .keep_all = T)                         %>% 
         dplyr::select( all_of( base_UUID_), weight, exp_factor_)
-
-        
+      
+      
     } else {
       ids_2_survey          <- NULL
       
@@ -1143,7 +1149,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
     
     
     # 5. DOUBLE PHASE * coming later)
-  #  if ( arena.chainSummary$samplingStrategy == 5 ) design_srvyr <- ""
+    #  if ( arena.chainSummary$samplingStrategy == 5 ) design_srvyr <- ""
     
     # post-stratification
     # https://github.com/gergness/srvyr/issues/50
@@ -1257,7 +1263,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       out_SRS_total <- jdesign                                      %>%
         dplyr::group_by( whole_area_ )                              %>%         
         dplyr::summarize( across( c( ends_with(".Total") ),      
-               list( ~survey_total( ., vartype = c("var") ))))      %>%  
+                                  list( ~survey_total( ., vartype = c("var") ))))      %>%  
         as.data.frame(.) 
       
       var_global_total <- out_global_total %>% select( ends_with("_var")) 
@@ -1265,7 +1271,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
       var_efficiency   <- var_SRS_total / var_global_total 
       
       var_efficiency   <- var_efficiency %>% setNames( stringr::str_replace( names(.), "_ha.Total_var", "")) %>%
-           setNames( stringr::str_replace( names(.), "_ha.Total_1_var", ""))
+        setNames( stringr::str_replace( names(.), "_ha.Total_1_var", ""))
       
       rm(var_global_total); rm(var_SRS_total)
       
@@ -1456,16 +1462,16 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
                error   = function( e ) { cat("No output - cluster results")
                })
     }
-  
+    
   }
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "server" & exists('user_file_path')  & server_report_step == "last") { 
     # zip all files
-      export_filename  <- paste0( user_file_path, 'arena_results_(', arena.chainSummary$surveyName, ').zip')
-      files2zip        <- dir( user_file_path, full.names = TRUE )
-      if ( length(files2zip) > 0 ) {
-        zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
-        browseURL( export_filename )
-      }
+    export_filename  <- paste0( user_file_path, 'arena_results_(', arena.chainSummary$surveyName, ').zip')
+    files2zip        <- dir( user_file_path, full.names = TRUE )
+    if ( length(files2zip) > 0 ) {
+      zip(zipfile = export_filename, files = files2zip, mode = "cherry-pick")
+      browseURL( export_filename )
+    }
   }
   
   if ( Sys.getenv("RSTUDIO_PROGRAM_MODE") == "desktop" & exists('user_file_path') ) { 
