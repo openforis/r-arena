@@ -955,7 +955,7 @@ arenaAnalytics <- function( dimension_list_arg, server_report_step ) {
         group_by( across( all_of(arena.analyze$strat_attribute))) %>%
         tidyr::complete(!!!syms(dim_names)) %>%
         data.frame()
-      } else {
+      } else { 
         df_analysis_combined <- df_analysis_combined %>% tidyr::complete(!!!syms(dimension_names))
       }
         
